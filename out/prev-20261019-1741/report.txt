@@ -1,0 +1,68 @@
+
+==============================================================================
+  bookmarks-merge  -  reporte
+==============================================================================
+  Firefox : /home/javier/.mozilla/firefox/14yqiklo.default-release
+  Brave   : /home/javier/.config/BraveSoftware/Brave-Browser/Default
+  Modo    : APPLY
+
+-- Estado de origen ---------------------------------------------------------
+  Brave   :  1604 bookmarks,  321 carpetas
+  Firefox :  2918 bookmarks,  573 carpetas, 5 separadores
+            (3 entradas de etiquetas ignoradas: Firefox descarta el root de tags)
+
+-- Duplicados eliminados -----------------------------------------------------
+  Dentro de Brave          :   108
+  Firefox (ya estaban en Brave):  2863
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Desarrollo Web  ->  https://render.com/
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Desarrollo Web  ->  https://github.com/login
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Desarrollo Web  ->  https://gottigjavier.github.io/gottigweb/
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Desarrollo Web  ->  https://owasp.org/#
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Desarrollo Web  ->  https://caniuse.com/
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Health  ->  https://www.baeldung.com/java-mqtt-client
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Health  ->  https://io.adafruit.com/blog/security/2016/07/05/adafruit-io-security-
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Health  ->  http://blog.espol.edu.ec/girni/category/broker-gestion/mqtt-mosquitto/
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/cursos  ->  https://owasp.org/#
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Varios  ->  https://argentinaprograma.inti.gob.ar/
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Varios  ->  https://www.codewars.com/
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Varios  ->  https://www.baeldung.com/jpa-many-to-many
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Varios  ->  https://owasp.org/#
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Varios  ->  https://projectlombok.org/features/all
+     - [br] bookmark_bar/Favoritos/PROGRAMACION/Varios  ->  https://imgur.com/
+
+-- Exclusivos de Firefox (preservados) ---------------------------------------
+  Total reubicado : 52
+  Destino         : Favoritos / Desde Firefox
+     - Barra de marcadores  ->  https://cuevana3cc.site/
+     - Barra de marcadores  ->  https://julius.ai/chat?tier=Free
+     - Barra de marcadores / Favoritos / Logins / Educacion  ->  https://educacion.conae.gov.ar/aulavirtual/message/index.php
+     - Barra de marcadores / Favoritos / PROGRAMACION / Hacking / N  ->  https://www.ietf.org/archive/id/draft-thain-ipv8-00.html
+     - Barra de marcadores / Favoritos / PROGRAMACION / Hacking / S  ->  https://eu.pwpush.com/
+     - Barra de marcadores / Favoritos / PROGRAMACION / IA / Modelo  ->  https://ollama.com/library
+     - Barra de marcadores / Favoritos / PROGRAMACION / Desarrollo   ->  https://web-check.xyz/
+     - Barra de marcadores / Favoritos / PROGRAMACION / Desarrollo   ->  https://github.com/VoltAgent/awesome-design-md
+     - Barra de marcadores / Favoritos / PROGRAMACION / TotalFreeSo  ->  https://github.com/VladSez/easy-invoice-pdf
+     - Barra de marcadores / Favoritos / PROGRAMACION / Shell  ->  https://github.com/ValentinTorassa/vt-terminal-project
+     - Barra de marcadores / Favoritos / PROGRAMACION / N8NyTrafeik  ->  https://reactflow.dev/examples
+     - Barra de marcadores / Favoritos / Importado desde Firefox /   ->  https://www.loteriasantafe.gov.ar/index.php/resultados/brinc
+     - Barra de marcadores / Favoritos / PROGRAMACION / IA / openar  ->  https://openarg.org/
+     - Barra de marcadores / Favoritos / PROGRAMACION / Lenguajes y  ->  https://www.drawdb.app/
+     - Barra de marcadores / Favoritos / PROGRAMACION / IA / IA Age  ->  https://clis.dev/
+
+-- Resultado -----------------------------------------------------------------
+  Bookmark finales : 1548
+  Carpetas finales : 384
+
+-- Verificacion --------------------------------------------------------------
+  OK   Brave   (chromium): 1548 bookmarks (esperado 1548), 384 carpetas, 0 duplicados
+  OK   Firefox (legacy json): 1548 bookmarks (esperado 1548), 388 carpetas, 0 duplicados
+  OK   los dos artefactos coinciden en cantidad
+
+-- Siguiente paso ------------------------------------------------------------
+  Brave   : archivo reemplazado. Abrilo y revisa la barra de marcadores.
+  Firefox : hacer el restore a mano (Firefox REEMPLAZA todo el arbol):
+            1) Cerrá Firefox.
+            2) Abrí Firefox -> Ctrl+Shift+O (Biblioteca).
+            3) Importar y respaldar -> Restaurar -> Elegir archivo...
+            4) Elegí: /home/javier/programacion/browsers/IA-sync/out/firefox-restore.json
+            5) Aceptá el aviso de que se borran los marcadores actuales.

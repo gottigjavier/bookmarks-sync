@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "created": "20261019-174129",
+  "script_version": "1.0.0",
+  "files": {
+    "firefox/places.sqlite": {
+      "bytes": 5242880,
+      "sha256": "205f555330dac6aae2ea62dfd709e6d39f19d8ba7461e4ed64e8e7dedea61444"
+    },
+    "firefox/places.sqlite-wal": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "brave/Bookmarks": {
+      "bytes": 880319,
+      "sha256": "a78e95ae205014071bfa28714a50719c47b02e6b05937fb2e53dc8992e01ba15"
+    },
+    "brave/Bookmarks.bak": {
+      "bytes": 880319,
+      "sha256": "a78e95ae205014071bfa28714a50719c47b02e6b05937fb2e53dc8992e01ba15"
+    }
+  }
+}
