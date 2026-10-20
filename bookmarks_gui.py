@@ -926,8 +926,20 @@ class BookmarksGui:
             + (", ".join(self._display(m) for m in auto) or "ninguna"),
         ]
         if "firefox" in members and only in ("both", "firefox"):
-            lines.append(f"Firefox: restore MANUAL desde {out / 'firefox-restore.json'} "
-                         "(desde la Biblioteca)")
+            # Firefox NUNCA se escribe en vivo — esta línea DEBE leerse.
+            lines += [
+                "",
+                "┌" + "─" * 70 + "┐",
+                "│  ⚠️  FIREFOX: RESTORE MANUAL OBLIGATORIO  ⚠️                  │",
+                "├" + "─" * 70 + "┤",
+                f"│  Archivo: firefox-restore.json  (carpeta: {out.name:<36}│",
+                "│                                                               │",
+                "│  Pasos: Biblioteca (Ctrl+Shift+O) → ⚙ Importar y          │",
+                "│  respaldar → Importar datos → Desde archivo →             │",
+                "│  seleccionar el JSON de arriba.                             │",
+                "└" + "─" * 70 + "┘",
+                "",
+            ]
         for m in members:
             if m != "firefox" and m not in auto and only in ("both", m):
                 lines.append(f"{self._display(m)}: copia manual del artefacto "

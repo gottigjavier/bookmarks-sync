@@ -3,51 +3,46 @@
   bookmarks-merge  -  reporte
 ==============================================================================
   Firefox  : /home/javier/.mozilla/firefox/14yqiklo.default-release
-  Chromium : /home/javier/.config/chromium/Default
-  Par     : firefox,chromium
-  Canonico: firefox
-  Modo    : APPLY
+  Brave    : /home/javier/.config/BraveSoftware/Brave-Browser/Default
+  Par     : firefox,brave
+  Canonico: brave
+  Modo    : DRY-RUN (no se toca ningun browser)
 
 -- Estado de origen ---------------------------------------------------------
   Firefox :  1548 bookmarks,  390 carpetas, 0 separadores
-  Chromium :  1548 bookmarks,  384 carpetas
+  Brave    :  1549 bookmarks,  384 carpetas
 
 -- Duplicados eliminados -----------------------------------------------------
-  Dentro de Firefox   :     0
-  Chromium (ya estaban en Firefox):  1548
-     - [ch] bookmark_bar/Favoritos/Logins/Pearson Sign In  ->  https://login.pearson.com/v1/piapi/piui/signin?client_id=bWPoUiRnLpUhX
-     - [ch] bookmark_bar/Favoritos/Logins/Deno Deploy | Deno  ->  https://deno.com/deploy
-     - [ch] bookmark_bar/Favoritos/Logins/Log in · Clever Cloud  ->  https://api.clever-cloud.com/v2/session/login
-     - [ch] bookmark_bar/Favoritos/Logins/Acceso con Clave Fiscal - ARCA  ->  https://auth.afip.gob.ar/contribuyente_/login.xhtml
-     - [ch] bookmark_bar/Favoritos/Logins/Portal Empleo  ->  https://www.portalempleo.gob.ar/
-     - [ch] bookmark_bar/Favoritos/Logins/Enersa Portal Web | Nuestra Oficina Online  ->  https://enersa.azurewebsites.net/EnersaWeb/index.html
-     - [ch] bookmark_bar/Favoritos/Logins/Tarjeta SUBE  ->  https://tarjetasube.sube.gob.ar/SubeWeb/Webforms/Account/Views/Login.a
-     - [ch] bookmark_bar/Favoritos/Logins/Iniciar sesión - Stack Overflow en español  ->  https://es.stackoverflow.com/users/login?ssrc=head&returnurl=https%3a%
-     - [ch] bookmark_bar/Favoritos/Logins/Una pluma por el capitán anónimo  ->  https://codepen.io/pen/
-     - [ch] bookmark_bar/Favoritos/Logins/Bienvenidos - Mi Claro  ->  https://miclaro.claro.com.ar/web/guest/bienvenido
-     - [ch] bookmark_bar/Favoritos/Logins/Inicie sesión en su cuenta PayPal  ->  https://www.paypal.com/ar/signin
-     - [ch] bookmark_bar/Favoritos/Logins/Iniciar sesión - Nubi  ->  https://login.tunubi.com/Login
-     - [ch] bookmark_bar/Favoritos/Logins/Wilobank  ->  https://banco.wilobank.com/wilobank/#/errorLogin
-     - [ch] bookmark_bar/Favoritos/Logins/Login - Adminer  ->  https://adminer.cs50.net/
-     - [ch] bookmark_bar/Favoritos/Logins/Neetwork Business School  ->  https://campus.neetwork.com/courses/
+  Dentro de Brave     :     0
+  Firefox (ya estaban en Brave):  1548
+     - [ff] bookmark_bar/Google  ->  https://www.google.com.ar/
+     - [ff] bookmark_bar/Facebook  ->  https://www.facebook.com/
+     - [ff] bookmark_bar/YouTube  ->  https://youtube.com/
+     - [ff] bookmark_bar/AccuWeather  ->  https://www.accuweather.com/es/ar/parana/3634/hourly-weather-forecast/
+     - [ff] bookmark_bar/Windguru   ->  https://www.windguru.cz/356415
+     - [ff] bookmark_bar/Cuevana 3  ->  https://cuevana.you/
+     - [ff] bookmark_bar/‎Gemini  ->  https://gemini.google.com/?gad_source=1
+     - [ff] bookmark_bar/Poolside Chat  ->  https://chat.poolside.ai/
+     - [ff] bookmark_bar/GPT  ->  https://chatgpt.com/
+     - [ff] bookmark_bar/Genspark  ->  https://www.genspark.ai/es
+     - [ff] bookmark_bar/Claude  ->  https://claude.ai/login
+     - [ff] bookmark_bar/Swift  ->  https://swift-ai.vercel.app/
+     - [ff] bookmark_bar/Morphic  ->  https://www.morphic.sh/
+     - [ff] bookmark_bar/Perplexity  ->  https://www.perplexity.ai/
+     - [ff] bookmark_bar/Cuevana 3  ->  https://www.cuevana.is/
 
--- Exclusivos de Chromium (preservados) --------------------------------------
+-- Exclusivos de Firefox (preservados) ---------------------------------------
   Total reubicado : 0
 
 -- Resultado -----------------------------------------------------------------
-  Bookmark finales : 1548
+  Bookmark finales : 1549
   Carpetas finales : 384
 
 -- Verificacion --------------------------------------------------------------
-  OK   Firefox  (legacy json): 1548 bookmarks (esperado 1548), 388 carpetas, 0 duplicados
-  OK   Chromium (chromium): 1548 bookmarks (esperado 1548), 384 carpetas, 0 duplicados
+  OK   Firefox  (legacy json): 1549 bookmarks (esperado 1549), 388 carpetas, 0 duplicados
+  OK   Brave    (chromium): 1549 bookmarks (esperado 1549), 384 carpetas, 0 duplicados
   OK   los dos artefactos coinciden en cantidad
 
 -- Siguiente paso ------------------------------------------------------------
-  Firefox : hacer el restore a mano (Firefox REEMPLAZA todo el arbol):
-            1) Cerrá Firefox.
-            2) Abrí Firefox -> Ctrl+Shift+O (Biblioteca).
-            3) Importar y respaldar -> Restaurar -> Elegir archivo...
-            4) Elegí: /home/javier/programacion/browsers/IA-sync/out/firefox-restore.json
-            5) Aceptá el aviso de que se borran los marcadores actuales.
-  Chromium : archivo reemplazado. Abrilo y revisa la barra de marcadores.
+  Nada fue modificado. Cuando revises este reporte y los archivos de out/,
+  autorizá la aplicacion con:  --apply
