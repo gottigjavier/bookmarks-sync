@@ -108,19 +108,19 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical firefox \
 
 ## Graphical Interface (GUI)
 
-`bookmarks_gui.py` exposes the full CLI in a tkinter window (stdlib only). It adds no duplicated logic: it builds the same command and runs it via subprocess, and enumerates browsers, pairs, and defaults from `--list-browsers --json` (the CLI's registry is the single source of truth).
+`bookmarks_gui.py` exposes the full CLI in a tkinter window (stdlib only). It adds no duplicated logic: it builds the same command and runs it via subprocess, and enumerates browsers, pairs, and defaults from `--list-browsers --json` (the CLI's registry is the single source of truth). The interface uses a dark theme (`#1a1a2e` background, flat borderless `#16213e` cards) with emoji icons in titles and buttons.
 
 ```bash
 python3 bookmarks_gui.py              # open the window
 python3 bookmarks_gui.py --self-test  # test the pure logic, no display needed
 ```
 
-- **Sync**: A/B pair (they cannot be the same), canonical restricted to the two members, and `--only`.
-- **Profiles**: one row per registry browser; only the pair's members are enabled (the rest are disabled), and the field shows the default profile in gray until edited (if it matches the default, no flag is sent). "Browse…" warns if `places.sqlite` (Firefox) or `Bookmarks` (Chromium) is missing, but keeps the chosen path.
-- **Options**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe`, and `--force`.
-- **Actions**: preview (dry-run) with live output, `--apply` and `--restore` with a confirmation dialog summarizing the pair, the canonical, and which store is written automatically vs. manually, plus direct access to `out/` and `report.txt`. At the end of the row, "Cerrar" exits through the same safe path as the window button.
+- **🔀 Sync**: A/B pair (they cannot be the same), canonical restricted to the two members, and `--only`.
+- **👤 Profiles**: one row per registry browser; only the pair's members are enabled (the rest are disabled), and the field shows the default profile in gray until edited (if it matches the default, no flag is sent). "📂 Browse…" warns if `places.sqlite` (Firefox) or `Bookmarks` (Chromium) is missing, but keeps the chosen path.
+- **⚙ Options**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe`, and `--force`.
+- **⚡ Actions**: preview (dry-run) with live output, `--apply` and `--restore` with a confirmation dialog summarizing the pair, the canonical, and which store is written automatically vs. manually, plus direct access to `out/` and `report.txt`. At the end of the row, "✖ Cerrar" exits through the same safe path as the window button.
 
-Action buttons are disabled while a process is running (the close button stays enabled); closing the window with an active run asks for confirmation and terminates the subprocess. The **Salida** section shows the CLI log and has its own "Limpiar" button.
+Action buttons are disabled while a process is running (the close button stays enabled); closing the window with an active run asks for confirmation and terminates the subprocess. The **📋 Salida** section shows the CLI log, and its "🧹 Limpiar" button lives in the section header next to the title.
 
 ## How It Works
 

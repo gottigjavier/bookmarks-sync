@@ -146,6 +146,40 @@ G1 ~25 líneas; GUI ~400-480 líneas nuevas + sección README. El total puede su
       (confirmar + terminate + wait si hay run), fuera de `_action_buttons` →
       queda habilitado durante una corrida.
 
+## Tercer feedback del usuario (2026-10-20, test con display) → G7
+
+- [x] **G7a — BUG "Examinar…" deshabilitados**: causa raíz = regresión de G6c. Al
+      pasar los comboboxes de par de tokens a etiquetas de display, el handler
+      `_on_pair_change()` seguía comparando `name in members` con `members` en
+      etiquetas (`'firefox' in ['Firefox','Brave']` → False para TODOS) → las tres
+      filas quedaban deshabilitadas, incluidas las del par activo. Fix: mapear a
+      tokens antes de comparar (`token_for(...)`). Matriz de estados verificada
+      headless para los 3 pares (2 habilitados + 1 deshabilitado, correcto).
+      Lección: cambiar el SIGNIFICADO de una variable rompe silenciosamente a
+      todos sus consumidores — el guard durable sería un único accessor
+      `_member_tokens()`.
+- [x] **G7b — BUG spinbox "Ejemplos Máximos" invisible**: se configuraba
+      `TSpinbox background` pero no `fieldbackground` (clam dibuja el área de
+      texto desde ahí) → quedaba el default claro con texto casi blanco. Fix:
+      `fieldbackground` explícito; delta de luminancia spinbox = entry = 0.833.
+- [x] **G7c — "Limpiar" a la cabecera de Salida**: movido junto al título de la
+      sección; la tira de botones interna del log se eliminó (más alto útil).
+- [x] **G7d — estilo clima**: imitado `/home/javier/programacion/python/clima`
+      (`clima_tkinter.py`, tkinter puro). Paleta exacta del referencia (window
+      `#1a1a2e`, panel `#16213e`, campo `#1f2b47`, texto `#fff`, muted `#a0a0a0`,
+      dim `#666`, accent `#00ff88`, danger `#e94560`) + reglas de uso: cero
+      `ttk.LabelFrame` (tarjetas `tk.Frame` planas por contraste, no bordes),
+      cero `ttk.Button` (botones planos `bd=0`, `cursor="hand2"`), emojis inline
+      como iconos (patrón `f"💧 Humedad: {x}"` del referencia), fuentes Helvetica
+      vía `load_fonts()` + familia de emoji resuelta en runtime (`Noto Color
+      Emoji` acá, con fallback a la fuente de UI). 14 emojis en total en títulos
+      de sección, botones y status. Inputs siguen siendo ttk (mejor edición),
+      estilizados al campo oscuro.
+
+Verificado: 18 checks del self-test, 0 `LabelFrame`, 0 `ttk.Button`, 14 literales
+de color todos dentro de `PALETTE`, `_on_pair_change` correcto en los 3 pares,
+3 rutas de cierre (sin run / con confirmación / cancelar).
+
 Dato aclarado: el Chromium "poblado" (850KB) NO lo puso el usuario — su run de
 apply partió de `Chromium: 0 bookmarks` (report.txt 17:10) y el apply copió
 Firefox adentro.
@@ -153,4 +187,5 @@ Firefox adentro.
 Commits de la ronda: `5d8ebd4e chore` (artifacts del test real + snapshots/
 gitignored) → `1e5a06e0 fix(cli)` (orden de carpetas, G5a) → `fdbdeceb feat(gui)`
 (G5b+G5c + docs) → `d9cbb661 chore` (untrack del .pyc + artifacts del 2do run,
-que ya salió con el orden corregido) → commit de este cambio `feat(gui)` (G6a-G6d).
+que ya salió con el orden corregido) → `fcf140a6 feat(gui)` (G6a-G6d) →
+commit de este cambio `fix(gui)` (G7a-G7d: 2 bugs + layout + estilo clima).
