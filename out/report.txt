@@ -3,46 +3,30 @@
   bookmarks-merge  -  reporte
 ==============================================================================
   Firefox  : /home/javier/.mozilla/firefox/14yqiklo.default-release
-  Brave    : /home/javier/.config/BraveSoftware/Brave-Browser/Default
-  Par     : firefox,brave
-  Canonico: brave
-  Modo    : DRY-RUN (no se toca ningun browser)
+  Chromium : /home/javier/.config/chromium/Default
+  Par     : firefox,chromium
+  Canonico: firefox
+  Modo    : APPLY
 
 -- Estado de origen ---------------------------------------------------------
   Firefox :  1548 bookmarks,  390 carpetas, 0 separadores
-  Brave    :  1549 bookmarks,  384 carpetas
+  Chromium :     0 bookmarks,    0 carpetas
 
 -- Duplicados eliminados -----------------------------------------------------
-  Dentro de Brave     :     0
-  Firefox (ya estaban en Brave):  1548
-     - [ff] bookmark_bar/Google  ->  https://www.google.com.ar/
-     - [ff] bookmark_bar/Facebook  ->  https://www.facebook.com/
-     - [ff] bookmark_bar/YouTube  ->  https://youtube.com/
-     - [ff] bookmark_bar/AccuWeather  ->  https://www.accuweather.com/es/ar/parana/3634/hourly-weather-forecast/
-     - [ff] bookmark_bar/Windguru   ->  https://www.windguru.cz/356415
-     - [ff] bookmark_bar/Cuevana 3  ->  https://cuevana.you/
-     - [ff] bookmark_bar/‎Gemini  ->  https://gemini.google.com/?gad_source=1
-     - [ff] bookmark_bar/Poolside Chat  ->  https://chat.poolside.ai/
-     - [ff] bookmark_bar/GPT  ->  https://chatgpt.com/
-     - [ff] bookmark_bar/Genspark  ->  https://www.genspark.ai/es
-     - [ff] bookmark_bar/Claude  ->  https://claude.ai/login
-     - [ff] bookmark_bar/Swift  ->  https://swift-ai.vercel.app/
-     - [ff] bookmark_bar/Morphic  ->  https://www.morphic.sh/
-     - [ff] bookmark_bar/Perplexity  ->  https://www.perplexity.ai/
-     - [ff] bookmark_bar/Cuevana 3  ->  https://www.cuevana.is/
+  Dentro de Firefox   :     0
+  Chromium (ya estaban en Firefox):     0
 
--- Exclusivos de Firefox (preservados) ---------------------------------------
+-- Exclusivos de Chromium (preservados) --------------------------------------
   Total reubicado : 0
 
 -- Resultado -----------------------------------------------------------------
-  Bookmark finales : 1549
+  Bookmark finales : 1548
   Carpetas finales : 384
 
 -- Verificacion --------------------------------------------------------------
-  OK   Firefox  (legacy json): 1549 bookmarks (esperado 1549), 388 carpetas, 0 duplicados
-  OK   Brave    (chromium): 1549 bookmarks (esperado 1549), 384 carpetas, 0 duplicados
+  OK   Firefox  (legacy json): 1548 bookmarks (esperado 1548), 388 carpetas, 0 duplicados
+  OK   Chromium (chromium): 1548 bookmarks (esperado 1548), 384 carpetas, 0 duplicados
   OK   los dos artefactos coinciden en cantidad
 
 -- Siguiente paso ------------------------------------------------------------
-  Nada fue modificado. Cuando revises este reporte y los archivos de out/,
-  autorizá la aplicacion con:  --apply
+  Chromium : archivo reemplazado. Abrilo y revisa la barra de marcadores.
