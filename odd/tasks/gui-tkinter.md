@@ -122,10 +122,35 @@ G1 ~25 líneas; GUI ~400-480 líneas nuevas + sección README. El total puede su
       checks. README ES/EN: 1 bullet ajustado por precisión (default en gris
       dentro del campo).
 
+## Segundo feedback del usuario (2026-10-20) → G6
+
+- [x] **G6a — layout 50/50**: fila superior con `grid` + `columnconfigure(0/1,
+      weight=1, uniform="half")` → mitad y mitad exacta. Opciones/Acciones/Salida
+      full-width debajo. Padding normalizado a 10; combobox a width 12.
+- [x] **G6b — tema oscuro moderno**: base `clam` con fallback seguro; paleta
+      central ÚNICA (`PALETTE`, 13 colores, dos tonos de superficie + campo +
+      accent + danger + muted) aplicada por una sola `apply_theme()` con wrapper
+      `safe()` que descarta opciones no soportadas (nunca crashea). Nombres de
+      opciones verificados contra `/usr/lib/tk8.6/ttk/clamTheme.tcl`. Techo
+      honesto: messagebox/filedialog siguen nativos — tkinter stdlib no da dark
+      nativo; el chrome de la app sí.
+- [x] **G6c — español en todo lo visible**: barrido completo (títulos, labels,
+      botones, diálogos, filedialog, placeholders, status, valores de combobox).
+      Los comboboxes muestran `Firefox/Brave/Chromium/Ambos` mientras el estado
+      que llega a `build_command` mantiene los tokens CLI (`token_for`/`only_token`).
+      Quedan a propósito: `Default` (carpeta real del perfil), `snapshot`
+      (vocabulario del CLI), nombres de flags y de archivos. self-test 17 → 18
+      checks (nuevo: etiquetas de pantalla → tokens CLI).
+- [x] **G6d — botón "Cerrar"**: al final de la fila Acciones (`side="right"`,
+      gap 24px, estilo neutro), misma ruta `on_close` que `WM_DELETE_WINDOW`
+      (confirmar + terminate + wait si hay run), fuera de `_action_buttons` →
+      queda habilitado durante una corrida.
+
 Dato aclarado: el Chromium "poblado" (850KB) NO lo puso el usuario — su run de
 apply partió de `Chromium: 0 bookmarks` (report.txt 17:10) y el apply copió
 Firefox adentro.
 
 Commits de la ronda: `5d8ebd4e chore` (artifacts del test real + snapshots/
-gitignored) → `1e5a06e0 fix(cli)` (orden de carpetas, G5a) → commit de este
-cambio `feat(gui)` (G5b+G5c + docs).
+gitignored) → `1e5a06e0 fix(cli)` (orden de carpetas, G5a) → `fdbdeceb feat(gui)`
+(G5b+G5c + docs) → `d9cbb661 chore` (untrack del .pyc + artifacts del 2do run,
+que ya salió con el orden corregido) → commit de este cambio `feat(gui)` (G6a-G6d).

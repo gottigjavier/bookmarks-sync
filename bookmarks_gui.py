@@ -27,6 +27,27 @@ DEFAULT_MAX_EXAMPLES = 15
 DEFAULT_OUT = str(SCRIPT.parent / "out")
 DEFAULT_SNAPSHOTS = str(SCRIPT.parent / "snapshots")
 
+# Single source of truth for every UI color. Dark by design; stdlib ttk (clam)
+# cannot reach true native dark, but this yields coherent dark app chrome.
+PALETTE = {
+    "window": "#1e1f22",    # root background + top-level frames
+    "panel": "#26272b",     # LabelFrame surfaces + their inner frames/labels
+    "field": "#2c2d31",     # entries, combobox fields, spinbox, log text
+    "border": "#3c3d42",    # widget borders / separators
+    "text": "#e8e9ec",      # primary foreground
+    "muted": "#9a9a9a",     # placeholders, status bar, disabled text
+    "accent": "#4c7dff",    # primary action (Previsualizar/Aplicar)
+    "accent_hover": "#3f6ae6",
+    "danger": "#a34a4a",    # destructive action (Restaurar)
+    "danger_hover": "#8f3f3f",
+    "on_accent": "#ffffff", # foreground over accent/danger
+    "select_bg": "#3f63d6",
+    "select_fg": "#ffffff",
+}
+
+# Display-only strings (state reaching build_command keeps CLI tokens).
+ONLY_BOTH = "Ambos"
+
 
 # ----------------------------------------------------------------- pure logic
 
@@ -52,8 +73,38 @@ def profile_placeholder(info):
     dir for chromium-family browsers.
     """
     if info["kind"] == "firefox":
-        return "Auto (profiles.ini)"
+        return "Automático (profiles.ini)"
     return f"{info['profile_base']}/Default"
+
+
+def token_for(browsers, value):
+    """Map a browser display label (or raw name) back to its CLI token.
+
+    Comboxes show display names (Firefox); build_command needs tokens
+    (firefox). Unknown values pass through unchanged (degraded registry).
+    """
+    for name, info in browsers.items():
+        if value == info.get("display"):
+            return name
+    return value
+
+
+def only_label(browsers, token):
+    """Map an --only CLI token to its combobox display label."""
+    if token == "both":
+        return ONLY_BOTH
+    info = browsers.get(token)
+    return info["display"] if info else token
+
+
+def only_token(browsers, label):
+    """Map an --only combobox display label back to its CLI token."""
+    if label == ONLY_BOTH:
+        return "both"
+    for name, info in browsers.items():
+        if label == info.get("display"):
+            return name
+    return label
 
 
 def _is_default_profile(value, info):
@@ -73,8 +124,9 @@ def _is_default_profile(value, info):
         return False
 
 
-PLACEHOLDER_FG = "#9a9a9a"
-REAL_FG = "#000000"
+# Migrated into PALETTE (single source of truth for colors).
+PLACEHOLDER_FG = PALETTE["muted"]
+REAL_FG = PALETTE["text"]
 
 
 def attach_placeholder(entry, placeholder):
@@ -263,10 +315,154 @@ def self_test():
             "only": "chromium"})
     raises("miembros duplicados lanza ValueError",
            {**base, "pair": "firefox,firefox", "canonical": "firefox"})
+
+    # Display layer (Spanish labels) must round-trip to CLI tokens: the state
+    # that reaches build_command keeps tokens even though combos show labels.
+    expect("etiquetas de pantalla → tokens CLI",
+           (token_for(browsers, browsers["firefox"]["display"]),
+            token_for(browsers, "brave"),
+            only_label(browsers, "both"),
+            only_label(browsers, "chromium"),
+            only_token(browsers, ONLY_BOTH),
+            only_token(browsers, browsers["brave"]["display"])),
+           ("firefox", "brave", ONLY_BOTH, "Chromium", "both", "brave"))
     return checks
 
 
 # ----------------------------------------------------------------- GUI
+
+
+def safe_configure(widget, **options):
+    """Configure a widget, dropping any option it does not support.
+
+    ttk::style accepts unknown options silently, but widget .configure raises
+    TclError; classic tk widgets (the log pane and its scrollbar) live here.
+    """
+    try:
+        widget.configure(**options)
+    except tk.TclError:
+        for key, value in options.items():
+            try:
+                widget.configure(**{key: value})
+            except tk.TclError:
+                pass
+
+
+def apply_theme(root, style):
+    """Apply PALETTE to the whole UI through one ttk style. Headless-safe.
+
+    Base: clam with a safe fallback (the app keeps working without it).
+    Unsupported options are skipped silently (see `safe`).
+    """
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass  # clam unavailable: current theme kept, per-option skips below
+
+    def safe(fn, *args, **kw):
+        """Apply style options; on TclError retry one-by-one, dropping failures."""
+        try:
+            fn(*args, **kw)
+        except tk.TclError:
+            for key, value in kw.items():
+                try:
+                    fn(*args, **{key: value})
+                except tk.TclError:
+                    pass  # not supported by this theme: skip silently
+
+    p = PALETTE
+    root.configure(background=p["window"])
+    # Best effort: classic Tk dialogs (msgbox/filedialog) on X11.
+    root.option_add("*Dialog.msg*Background", p["panel"])
+    root.option_add("*Dialog.msg*Foreground", p["text"])
+    root.option_add("*TCombobox*Listbox*Background", p["field"])
+    root.option_add("*TCombobox*Listbox*Foreground", p["text"])
+    root.option_add("*TCombobox*Listbox*selectBackground", p["select_bg"])
+    root.option_add("*TCombobox*Listbox*selectForeground", p["select_fg"])
+
+    # Base style + two surface tones (window vs panel).
+    safe(style.configure, ".", background=p["window"], foreground=p["text"],
+         bordercolor=p["border"], troughcolor=p["field"],
+         selectbackground=p["select_bg"], selectforeground=p["select_fg"])
+    safe(style.map, ".", background=[("disabled", p["window"])],
+         foreground=[("disabled", p["muted"])])
+    safe(style.configure, "TFrame", background=p["window"])
+    safe(style.configure, "Panel.TFrame", background=p["panel"])
+    safe(style.configure, "TLabel", background=p["window"], foreground=p["text"])
+    safe(style.configure, "Panel.TLabel", background=p["panel"],
+         foreground=p["text"])
+    safe(style.configure, "TLabelframe", background=p["panel"],
+         foreground=p["text"])
+    safe(style.configure, "TLabelframe.Label", background=p["panel"],
+         foreground=p["text"])
+
+    # Buttons: neutral by default; accent for primary, danger for destructive.
+    safe(style.configure, "TButton", background=p["field"], foreground=p["text"],
+         bordercolor=p["border"])
+    safe(style.map, "TButton",
+         background=[("active", p["border"]), ("pressed", p["border"]),
+                     ("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])])
+    safe(style.configure, "Accent.TButton", background=p["accent"],
+         foreground=p["on_accent"], bordercolor=p["accent"])
+    safe(style.map, "Accent.TButton",
+         background=[("active", p["accent_hover"]),
+                     ("pressed", p["accent_hover"]), ("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])])
+    safe(style.configure, "Danger.TButton", background=p["danger"],
+         foreground=p["on_accent"], bordercolor=p["danger"])
+    safe(style.map, "Danger.TButton",
+         background=[("active", p["danger_hover"]),
+                     ("pressed", p["danger_hover"]), ("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])])
+
+    # Text-entry-like fields.
+    safe(style.configure, "TEntry", fieldbackground=p["field"],
+         foreground=p["text"], insertbackground=p["text"],
+         selectbackground=p["select_bg"], selectforeground=p["select_fg"],
+         bordercolor=p["border"])
+    safe(style.map, "TEntry",
+         fieldbackground=[("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])],
+         bordercolor=[("focus", p["accent"])])
+    safe(style.configure, "TCombobox", fieldbackground=p["field"],
+         foreground=p["text"], background=p["field"], arrowcolor=p["text"],
+         bordercolor=p["border"])
+    safe(style.map, "TCombobox",
+         fieldbackground=[("readonly", p["field"]), ("disabled", p["panel"])],
+         foreground=[("readonly", p["text"]), ("disabled", p["muted"])],
+         arrowcolor=[("disabled", p["muted"])],
+         bordercolor=[("focus", p["accent"])])
+    safe(style.configure, "ComboboxPopdownFrame", background=p["field"],
+         bordercolor=p["border"])
+    safe(style.configure, "TSpinbox", background=p["field"], foreground=p["text"],
+         arrowcolor=p["text"], bordercolor=p["border"])
+    safe(style.map, "TSpinbox",
+         background=[("readonly", p["field"]), ("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])],
+         arrowcolor=[("disabled", p["muted"])])
+
+    # Indicators (clam exposes indicatorbackground/indicatorforeground).
+    safe(style.configure, "TCheckbutton", background=p["panel"],
+         foreground=p["text"], indicatorbackground=p["field"],
+         indicatorforeground=p["text"])
+    safe(style.map, "TCheckbutton",
+         indicatorbackground=[("pressed", p["border"]),
+                              ("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])])
+    safe(style.configure, "TRadiobutton", background=p["panel"],
+         foreground=p["text"], indicatorbackground=p["field"],
+         indicatorforeground=p["text"])
+    safe(style.map, "TRadiobutton",
+         indicatorbackground=[("pressed", p["border"]),
+                              ("disabled", p["panel"])],
+         foreground=[("disabled", p["muted"])])
+
+    safe(style.configure, "TSeparator", background=p["border"])
+    safe(style.configure, "Vertical.TScrollbar", background=p["field"],
+         troughcolor=p["panel"], bordercolor=p["border"], arrowcolor=p["text"])
+    safe(style.map, "Vertical.TScrollbar", background=[("active", p["border"])],
+         arrowcolor=[("disabled", p["muted"])])
 
 
 class BookmarksGui:
@@ -286,13 +482,15 @@ class BookmarksGui:
         root.title(f"IA-sync — Sincronización de marcadores "
                    f"(v{registry.get('script_version', '?')})")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+        apply_theme(root, ttk.Style(root))
 
         self._build_ui()
         if self.pairs:
             first_a, first_b = self.pairs[0].split(",")
-            self.a_var.set(first_a)
-            self.b_var.set(first_b)
-            self._prev_a, self._prev_b = first_a, first_b
+            # Comboboxes hold display labels; state maps them back to tokens.
+            self.a_var.set(self._display(first_a))
+            self.b_var.set(self._display(first_b))
+            self._prev_a, self._prev_b = self._display(first_a), self._display(first_b)
         else:
             self._prev_a = self._prev_b = ""
         self._on_pair_change()
@@ -304,43 +502,52 @@ class BookmarksGui:
 
     def _build_ui(self):
         # Status bar packed first so it sits at the bottom.
-        status_frame = ttk.Frame(self.root, padding=(8, 4))
+        status_frame = ttk.Frame(self.root, padding=(10, 5))
         status_frame.pack(side="bottom", fill="x")
         self.status_var = tk.StringVar()
         ttk.Label(status_frame, textvariable=self.status_var,
-                  foreground="#555").pack(fill="x")
+                  foreground=PALETTE["muted"]).pack(fill="x")
 
         top = ttk.Frame(self.root)
-        top.pack(fill="x", padx=8, pady=(8, 4))
-        sync = ttk.LabelFrame(top, text="Sincronización", padding=8)
-        sync.pack(side="left", fill="x", expand=True)
+        top.pack(fill="x", padx=10, pady=(10, 5))
+        # 50/50 split: equal weights + uniform group force both sections to
+        # exactly half the row, regardless of each one's natural width.
+        top.columnconfigure(0, weight=1, uniform="half")
+        top.columnconfigure(1, weight=1, uniform="half")
+        sync = ttk.LabelFrame(top, text="Sincronización", padding=10)
+        sync.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         self.a_var, self.b_var = tk.StringVar(), tk.StringVar()
         self.pair_combos = []
         for col, (label, var) in enumerate((("Navegador A", self.a_var),
                                             ("Navegador B", self.b_var))):
-            ttk.Label(sync, text=label).grid(row=0, column=col * 2, sticky="w")
-            combo = ttk.Combobox(sync, textvariable=var, state="readonly", width=14,
-                                 values=list(self.browsers))
+            ttk.Label(sync, text=label, style="Panel.TLabel").grid(
+                row=0, column=col * 2, sticky="w")
+            # Combobox values are display labels; _state maps them to tokens.
+            combo = ttk.Combobox(sync, textvariable=var, state="readonly", width=12,
+                                 values=[info["display"]
+                                         for info in self.browsers.values()])
             combo.grid(row=0, column=col * 2 + 1, padx=(2, 16))
             combo.bind("<<ComboboxSelected>>",
                        lambda _e, which=col: self._on_browser_change(which))
             self.pair_combos.append(combo)
-        ttk.Label(sync, text="Canónico:").grid(row=1, column=0, sticky="w", pady=(6, 0))
-        self.canon_box = ttk.Frame(sync)
+        ttk.Label(sync, text="Canónico:", style="Panel.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(6, 0))
+        self.canon_box = ttk.Frame(sync, style="Panel.TFrame")
         self.canon_box.grid(row=1, column=1, columnspan=3, sticky="w", pady=(6, 0))
         self.canonical_var = tk.StringVar()
-        ttk.Label(sync, text="Aplicar a (--only):").grid(row=2, column=0, sticky="w",
-                                                         pady=(6, 0))
-        self.only_var = tk.StringVar(value="both")
+        ttk.Label(sync, text="Aplicar a (--only):", style="Panel.TLabel").grid(
+            row=2, column=0, sticky="w", pady=(6, 0))
+        self.only_var = tk.StringVar(value=ONLY_BOTH)
         self.only_combo = ttk.Combobox(sync, textvariable=self.only_var,
-                                       state="readonly", width=14)
+                                       state="readonly", width=12)
         self.only_combo.grid(row=2, column=1, sticky="w", pady=(6, 0))
 
-        profiles = ttk.LabelFrame(top, text="Perfiles", padding=8)
-        profiles.pack(side="left", fill="x", padx=(8, 0))
+        profiles = ttk.LabelFrame(top, text="Perfiles", padding=10)
+        profiles.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
         self.profile_rows = {}
         for row, (name, info) in enumerate(self.browsers.items()):
-            ttk.Label(profiles, text=info["display"] + ":").grid(
+            ttk.Label(profiles, text=info["display"] + ":",
+                      style="Panel.TLabel").grid(
                 row=row, column=0, sticky="w", pady=2)
             entry = ttk.Entry(profiles, width=30)
             entry.grid(row=row, column=1, padx=(2, 4), pady=2)
@@ -350,8 +557,8 @@ class BookmarksGui:
             browse.grid(row=row, column=2, padx=(0, 2), pady=2)
             self.profile_rows[name] = {"entry": entry, "browse": browse}
 
-        options = ttk.LabelFrame(self.root, text="Opciones", padding=8)
-        options.pack(fill="x", padx=8, pady=4)
+        options = ttk.LabelFrame(self.root, text="Opciones", padding=10)
+        options.pack(fill="x", padx=10, pady=5)
         self.attach_var = tk.StringVar(value=DEFAULT_ATTACH_FOLDER)
         self.out_var = tk.StringVar(value=DEFAULT_OUT)
         self.snapshots_var = tk.StringVar(value=DEFAULT_SNAPSHOTS)
@@ -361,51 +568,73 @@ class BookmarksGui:
                          self.out_var, 44, "Carpeta de salida")
         self._option_row(options, 2, "Carpeta de snapshots (--snapshots):",
                          self.snapshots_var, 44, "Carpeta de snapshots")
-        ttk.Label(options, text="Ejemplos máximos (--max-examples):").grid(
+        ttk.Label(options, text="Ejemplos máximos (--max-examples):",
+                  style="Panel.TLabel").grid(
             row=3, column=0, sticky="w")
         self.max_examples_var = tk.StringVar(value=str(DEFAULT_MAX_EXAMPLES))
         ttk.Spinbox(options, from_=0, to=1000, textvariable=self.max_examples_var,
                     width=6).grid(row=3, column=1, sticky="w", padx=4, pady=2)
         self.no_dedupe_var = tk.BooleanVar(value=False)
         self.force_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(options, text="Sin dedupe (--no-dedupe)",
+        ttk.Checkbutton(options, text="Sin deduplicación (--no-dedupe)",
                         variable=self.no_dedupe_var).grid(
             row=4, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(options, text="Forzar (--force) — peligroso",
                         variable=self.force_var).grid(
             row=5, column=0, columnspan=2, sticky="w")
 
-        actions = ttk.LabelFrame(self.root, text="Acciones", padding=8)
-        actions.pack(fill="x", padx=8, pady=4)
+        actions = ttk.LabelFrame(self.root, text="Acciones", padding=10)
+        actions.pack(fill="x", padx=10, pady=5)
         specs = (
-            ("Previsualizar (dry-run)", self.on_preview),
-            ("Aplicar…", self.on_apply),
-            ("Restaurar snapshot…", self.on_restore),
-            ("Abrir carpeta de salida", self.on_open_out),
-            ("Abrir reporte.txt", self.on_open_report),
+            ("Previsualizar (solo lectura)", self.on_preview, "Accent.TButton"),
+            ("Aplicar…", self.on_apply, "Accent.TButton"),
+            ("Restaurar snapshot…", self.on_restore, "Danger.TButton"),
+            ("Abrir carpeta de salida", self.on_open_out, None),
+            ("Abrir report.txt", self.on_open_report, None),
         )
-        for text, command in specs:
-            btn = ttk.Button(actions, text=text, command=command)
+        for text, command, btn_style in specs:
+            btn = ttk.Button(actions, text=text, command=command,
+                             style=btn_style or "TButton")
             btn.pack(side="left", padx=(0, 6))
             self._action_buttons.append(btn)
+        # Close button: same safe-close path as WM_DELETE_WINDOW, neutral style,
+        # deliberately separated from the action cluster and never disabled
+        # while a run is active (it exists to end the run safely).
+        ttk.Button(actions, text="Cerrar",
+                   command=self.on_close).pack(side="right", padx=(24, 0))
 
-        log_frame = ttk.LabelFrame(self.root, text="Log", padding=8)
-        log_frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
-        header = ttk.Frame(log_frame)
+        log_frame = ttk.LabelFrame(self.root, text="Salida", padding=10)
+        log_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        header = ttk.Frame(log_frame, style="Panel.TFrame")
         header.pack(fill="x")
         ttk.Button(header, text="Limpiar", command=self._clear_log).pack(side="right")
         # The log is the only expandable element: it grows with the window.
         self.log = scrolledtext.ScrolledText(log_frame, height=20, state="disabled",
                                              wrap="word")
         self.log.pack(fill="both", expand=True, pady=(4, 0))
+        # ScrolledText uses classic tk widgets: themed via widget options.
+        safe_configure(self.log, background=PALETTE["field"],
+                       foreground=PALETTE["text"],
+                       insertbackground=PALETTE["text"],
+                       selectbackground=PALETTE["select_bg"],
+                       selectforeground=PALETTE["select_fg"],
+                       highlightthickness=0, borderwidth=0)
+        safe_configure(self.log.frame, background=PALETTE["field"])
+        safe_configure(self.log.vbar, background=PALETTE["field"],
+                       troughcolor=PALETTE["window"],
+                       activebackground=PALETTE["border"],
+                       highlightthickness=0, borderwidth=0, relief="flat",
+                       width=11)
 
     # ---- registry-driven widgets ------------------------------------------
 
     def _pair_members(self):
+        # Combobox vars hold display labels (Firefox); tokens are mapped in _state.
         return [self.a_var.get(), self.b_var.get()]
 
     def _option_row(self, frame, row, label, var, width, browse_title=None):
-        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w")
+        ttk.Label(frame, text=label, style="Panel.TLabel").grid(
+            row=row, column=0, sticky="w")
         ttk.Entry(frame, textvariable=var, width=width).grid(
             row=row, column=1, sticky="w", padx=4, pady=2)
         if browse_title:
@@ -439,21 +668,21 @@ class BookmarksGui:
             child.destroy()
         if not self.browsers:
             # Degraded registry (fetch failure): no widgets to populate.
-            self.only_combo.configure(values=["both"])
-            self.only_var.set("both")
+            self.only_combo.configure(values=[ONLY_BOTH])
+            self.only_var.set(ONLY_BOTH)
             return
-        members = self._pair_members()
-        # Canónico: only the two pair members.
+        members = self._pair_members()  # display labels
+        # Canónico: only the two pair members (values are display labels too).
         if self.canonical_var.get() not in members:
             self.canonical_var.set(members[0])
         for member in members:
-            ttk.Radiobutton(self.canon_box, text=self._display(member),
+            ttk.Radiobutton(self.canon_box, text=member,
                             variable=self.canonical_var, value=member).pack(
                 side="left", padx=(0, 8))
-        # --only: both / A / B, rebuilt per pair.
-        self.only_combo.configure(values=["both"] + members)
-        if self.only_var.get() not in ("both",) + tuple(members):
-            self.only_var.set("both")
+        # --only: Ambos / A / B, rebuilt per pair (display labels only).
+        self.only_combo.configure(values=[ONLY_BOTH] + members)
+        if self.only_var.get() not in (ONLY_BOTH,) + tuple(members):
+            self.only_var.set(ONLY_BOTH)
         # Profile rows: enabled only for the pair's members.
         for name, row in self.profile_rows.items():
             active = name in members
@@ -471,7 +700,7 @@ class BookmarksGui:
                                 else "Bookmarks")
         if not store.exists():
             messagebox.showwarning(
-                "Store no encontrado",
+                "Archivo del perfil no encontrado",
                 f"No se encontró «{store.name}» dentro de {chosen}.\n"
                 "La ruta se toma igual; el CLI fallará si el perfil no es válido.")
         entry = self.profile_rows[name]["entry"]
@@ -495,9 +724,11 @@ class BookmarksGui:
                 from None
         return {
             "browsers": self.browsers,
-            "pair": ",".join(self._pair_members()),
-            "canonical": self.canonical_var.get(),
-            "only": self.only_var.get(),
+            # Display labels are mapped back to CLI tokens (firefox, both…).
+            "pair": ",".join(token_for(self.browsers, m)
+                             for m in self._pair_members()),
+            "canonical": token_for(self.browsers, self.canonical_var.get()),
+            "only": only_token(self.browsers, self.only_var.get()),
             "attach_folder": self.attach_var.get(),
             "out": self.out_var.get(),
             "snapshots": self.snapshots_var.get(),
@@ -650,7 +881,7 @@ class BookmarksGui:
                 self.proc = None
                 self._append_log(f"[proceso terminado — código de salida {code}]")
                 self._set_running(False)
-                self._set_status(f"Proceso finalizado (exit {code}).")
+                self._set_status(f"Proceso finalizado (código {code}).")
         except Exception as exc:  # noqa: BLE001 - a failed tick must not kill the timer
             try:
                 self._append_log(f"[error interno en el polling: {exc}]")

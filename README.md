@@ -120,9 +120,9 @@ python3 bookmarks_gui.py --self-test  # prueba la lógica pura, sin display
 - **Sincronización**: par A/B (no pueden ser iguales), canónico limitado a los dos miembros y `--only`.
 - **Perfiles**: una fila por navegador del registro; solo los miembros del par quedan activos (el resto, deshabilitados) y el campo muestra en gris el perfil por defecto hasta que se lo edita (si queda igual al default, no se envía el flag). "Examinar…" avisa si no encuentra `places.sqlite` (Firefox) o `Bookmarks` (Chromium), pero conserva la ruta elegida.
 - **Opciones**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe` y `--force`.
-- **Acciones**: previsualización (dry-run) con log en vivo, `--apply` y `--restore` con diálogo de confirmación que resume par, canónico y qué almacén se escribe automáticamente vs. a mano, y acceso directo a `out/` y `report.txt`.
+- **Acciones**: previsualización (dry-run) con la salida en vivo, `--apply` y `--restore` con diálogo de confirmación que resume par, canónico y qué almacén se escribe automáticamente vs. a mano, y acceso directo a `out/` y `report.txt`. Al final de la fila, "Cerrar" sale por el mismo camino seguro que el botón de la ventana.
 
-Mientras corre un proceso, los botones quedan deshabilitados; cerrar la ventana con una corrida activa pide confirmación y termina el subprocess.
+Mientras corre un proceso, los botones de acción quedan deshabilitados (el de cerrar sigue activo); cerrar la ventana con una corrida activa pide confirmación y termina el subprocess. La sección **Salida** muestra el log del CLI y tiene su propio botón "Limpiar".
 
 ## Cómo Funciona
 
