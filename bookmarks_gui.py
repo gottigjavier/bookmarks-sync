@@ -927,11 +927,11 @@ class BookmarksGui:
         ]
         if "firefox" in members and only in ("both", "firefox"):
             # Firefox NUNCA se escribe en vivo — esta línea DEBE leerse.
-            lines += [
+            # Primera línea = header (color emoji), resto = cuerpo monoespaciado.
+            lines = [
+                "⚠️  FIREFOX: RESTORE MANUAL OBLIGATORIO  ⚠️",
                 "",
                 "┌" + "─" * 70 + "┐",
-                "│  ⚠️  FIREFOX: RESTORE MANUAL OBLIGATORIO  ⚠️                  │",
-                "├" + "─" * 70 + "┤",
                 f"│  Archivo: firefox-restore.json  (carpeta: {out.name:<36}│",
                 "│                                                               │",
                 "│  Pasos: Biblioteca (Ctrl+Shift+O) → ⚙ Importar y          │",
@@ -939,6 +939,12 @@ class BookmarksGui:
                 "│  seleccionar el JSON de arriba.                             │",
                 "└" + "─" * 70 + "┘",
                 "",
+                "Se ejecutará --apply con estos parámetros:",
+                f"Par: {members[0]},{members[1]}   Canónico: "
+                f"{self._display(canonical)}   --only: {only}",
+                "",
+                "Escritura automática: "
+                + (", ".join(self._display(m) for m in auto) or "ninguna"),
             ]
         for m in members:
             if m != "firefox" and m not in auto and only in ("both", m):
@@ -984,10 +990,14 @@ class BookmarksGui:
         if not snapshot:
             self._set_status("↩️ Restauración cancelada.")
             return
-        summary = (f"Se restaurará el snapshot:\n{snapshot}\n"
-                   f"sobre los perfiles de {state['pair']} "
-                   f"(canónico: {state['canonical']}).\n"
-                   "Los archivos actuales se sobrescriben. ¿Continuar?")
+        summary = (
+            "⚠️  RESTAURAR SNAPSHOT - SOBRESCRIBE DATOS  ⚠️\n"
+            "\n"
+            f"Snapshot: {snapshot}\n"
+            f"Perfiles: {state['pair']} (canónico: {state['canonical']})\n"
+            "\n"
+            "Los archivos actuales se sobrescriben. ¿Continuar?"
+        )
         try:
             cmd = build_command(state) + ["--restore", snapshot]
         except ValueError as exc:
@@ -1021,7 +1031,7 @@ class BookmarksGui:
     # ---- process orchestration --------------------------------------------
 
     def _confirm(self, title: str, body: str) -> bool:
-        """Custom confirmation dialog with monospace text, proper sizing, and color emojis.
+        """Custom confirmation dialog with monospace body + color emoji header.
 
         Returns True for Yes, False for No. Mirrors messagebox.askyesno signature.
         """
@@ -1032,23 +1042,41 @@ class BookmarksGui:
         dlg.resizable(False, False)
         dlg.configure(bg=PALETTE["panel"])
 
-        # Center on parent
-        dlg.update_idletasks()
-        x = self.root.winfo_rootx() + (self.root.winfo_width() // 2)
-        y = self.root.winfo_rooty() + (self.root.winfo_height() // 2)
+        # Split body: first line (header with emojis) + rest (monospace box)
+        lines = body.split("\n")
+        header = lines[0] if lines else ""
+        rest = "\n".join(lines[1:]) if len(lines) > 1 else ""
 
-        # Text widget with monospace font
-        txt = tk.Text(
-            dlg, wrap="none", height=18, width=90,
-            bg=PALETTE["panel"], fg=PALETTE["text"],
-            font=("monospace", FONT_SIZES["label"]),
-            relief="flat", bd=0, highlightthickness=1,
-            highlightbackground=PALETTE["field_border"],
-            insertbackground=PALETTE["accent"],
-        )
-        txt.insert("1.0", body)
-        txt.configure(state="disabled")
-        txt.pack(padx=16, pady=16)
+        # Header label with color emoji font (if available)
+        if header:
+            emoji_font = self.fonts.get("emoji")
+            if emoji_font:
+                hdr = tk.Label(
+                    dlg, text=header, bg=PALETTE["panel"], fg=PALETTE["accent"],
+                    font=(emoji_font, FONT_SIZES["emoji"], "bold"),
+                    anchor="center", justify="center",
+                )
+            else:
+                hdr = tk.Label(
+                    dlg, text=header, bg=PALETTE["panel"], fg=PALETTE["accent"],
+                    font=("monospace", FONT_SIZES["label"], "bold"),
+                    anchor="center", justify="center",
+                )
+            hdr.pack(padx=16, pady=(16, 4))
+
+        # Body text widget with monospace font (box-drawing chars align)
+        if rest:
+            txt = tk.Text(
+                dlg, wrap="none", height=20, width=90,
+                bg=PALETTE["panel"], fg=PALETTE["text"],
+                font=("monospace", FONT_SIZES["label"]),
+                relief="flat", bd=0, highlightthickness=1,
+                highlightbackground=PALETTE["field_border"],
+                insertbackground=PALETTE["accent"],
+            )
+            txt.insert("1.0", rest.lstrip("\n"))
+            txt.configure(state="disabled")
+            txt.pack(padx=16, pady=(0, 16))
 
         # Buttons
         btn_frame = tk.Frame(dlg, bg=PALETTE["panel"])
@@ -1089,10 +1117,12 @@ class BookmarksGui:
         dlg.bind("<Escape>", lambda e: on_no())
         yes_btn.focus_set()
 
-        # Position and wait
+        # Position: centered horizontally, ~35% from top (avoids clashing with Acciones)
         dlg.update_idletasks()
         w, h = dlg.winfo_width(), dlg.winfo_height()
-        dlg.geometry(f"+{x - w // 2}+{y - h // 2}")
+        cx = self.root.winfo_rootx() + (self.root.winfo_width() // 2)
+        cy = self.root.winfo_rooty() + int(self.root.winfo_height() * 0.35)
+        dlg.geometry(f"+{cx - w // 2}+{cy - h // 2}")
         self.root.wait_window(dlg)
         return result["value"]
 
