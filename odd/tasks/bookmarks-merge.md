@@ -397,3 +397,62 @@ borrar nada a mano: el restore reemplaza el árbol entero.
 
 **Commit:** el proyecto no es un repositorio git → no hay commit de unidad de trabajo para este
 cambio (limitación conocida; se ofreció `git init` y quedó sin respuesta).
+
+---
+
+## T14 — Consolidación: `--canonical {brave|firefox}` (v1.2.0)
+
+**Fecha:** 2026-10-19
+**Ruta:** direct inline (1 archivo, refactor sobre código ya verificado).
+
+**Qué:** Agregar un flag `--canonical` al `bookmarks-merge.py` para seleccionar qué
+distribución de carpetas es la base del merge:
+
+- `--canonical brave` (default): comportamiento idéntico a v1.1.0 — esqueleto de Brave,
+  items Firefox-only bajo `Favoritos/Desde Firefox/...`.
+- `--canonical firefox`: esqueleto de Firefox, items Brave-only bajo `Desde Brave/...`
+  en la raíz correspondiente (bookmark_bar, other, synced).
+
+**Por qué un solo script:** comparten ~80% del código (lectores, dedupe, snapshot, apply,
+reporte). Dos scripts = duplicación de ~900 líneas, drift de versiones, y confusión sobre
+cuál usar. Un flag en `--help` deja la diferencia explícita.
+
+**Cambios en el archivo:**
+
+1. Docstring actualizado con ambos modos.
+2. `SCRIPT_VERSION = "1.2.0"`.
+3. Argumento `--canonical {brave,firefox}` (default: brave).
+4. `_build_ff_tree(ff_items)`: convierte la lista plana de items Firefox en árbol de
+   Nodes usando claves Brave (`bookmark_bar`, `other`, `synced`, `menu`). Tags (root_id=4)
+   se excluyen. Mapeo: toolbar→bookmark_bar, unfiled→other, mobile→synced, menu→menu.
+5. `_flatten_brave(brave_roots)`: extrae URLs del árbol Brave con información de path,
+   para colocarlas bajo `Desde Brave/<root>/<path original>`.
+6. `merge_ff_canonical(ff_items, brave_roots, attach_folder)`: misma lógica de dedupe
+   (shallowest wins) pero con el árbol Firefox como esqueleto y Brave-only bajo
+   `Desde Brave`.
+7. `main()`: branch según `args.canonical`.
+8. `build_report`: etiquetas mod-aware ("Dentro de Firefox" / "Exclusivos de Brave").
+
+**Verificación (dry-run con snapshot pre-merge `20261019-174129`):**
+
+| Métrica | `--canonical brave` | `--canonical firefox` |
+|---|---|---|
+| Bookmarks finales | 1548 | 1548 |
+| Carpetas finales (Brave) | 384 | 378 |
+| Dedupe intra-canónico | 108 (Brave) | 1393 (Firefox) |
+| Ya en el canónico | 2863 (FF items) | 1578 (Brave items) |
+| Exclusivos reubicados | 52 (FF) | 26 (Brave) |
+| Verificación | OK | OK |
+
+Ambos modos producen **la misma unión de 1548 bookmarks**. La diferencia es la estructura
+de carpetas (384 vs 378 carpetas) porque el esqueleto canónico es distinto.
+
+Estructura de exclusivos en modo Firefox-canonical:
+- `bookmark_bar / Desde Brave / Favoritos / ...` → 17 bookmarks
+- `other / Desde Brave / {Cuevana, kukas, Radar-Vivo, Salud} / ...` → 9 bookmarks
+- Total: 26 (coincide con el conteo original de "solo en Brave")
+
+**Script separado eliminado:** `bookmarks-merge-ff-canonical.py` (escrito durante la
+sesión pero redundante tras la consolidación).
+
+**Commit:** pendiente (proyecto inicializado en jj por el usuario; working copy limpio).

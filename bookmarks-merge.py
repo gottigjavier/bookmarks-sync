@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """bookmarks-merge - converge Firefox and Brave bookmarks into one deduplicated tree.
 
-The merged tree uses Brave's folder distribution as the canonical layout. Bookmarks
-that exist in only one browser are preserved: Brave's stay where they are, Firefox's
-are attached under "<attach-folder>/Desde Firefox/<firefox root>/<original path>".
+Canonical layout is selectable via --canonical:
+
+  --canonical brave   (default) Brave's folder distribution is the skeleton.
+                       Firefox-only bookmarks are attached under
+                       "<attach-folder>/Desde Firefox/<firefox root>/<original path>".
+
+  --canonical firefox  Firefox's folder distribution is the skeleton.
+                       Brave-only bookmarks are attached under
+                       "Desde Brave/<brave root>/<original path>".
 
 Design notes. Every one of these was verified against upstream source; see
 odd/tasks/bookmarks-merge.md for the exact file and line references.
@@ -44,7 +50,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-SCRIPT_VERSION = "1.1.0"
+SCRIPT_VERSION = "1.2.0"
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 # Seconds between 1601-01-01 (Windows/Chromium epoch) and 1970-01-01, in microseconds.
@@ -307,6 +313,29 @@ def _brave_to_node(node):
     return _bookmark(node.get("name") or url, url, int(node.get("date_added") or 0))
 
 
+def _flatten_brave(brave_roots):
+    """Extract all URLs from Brave tree with path information, grouped by root."""
+    items = []
+    for root_key, children in brave_roots.items():
+        for node in children:
+            _flatten_brave_node(node, root_key, [], items)
+    return items
+
+
+def _flatten_brave_node(node, root_key, path, items):
+    if node.kind == "url":
+        items.append({
+            "root_key": root_key,
+            "path": list(path),
+            "title": node.name,
+            "url": node.url,
+            "added_us": node.added_us,
+        })
+    else:
+        for child in node.children:
+            _flatten_brave_node(child, root_key, path + [node.name], items)
+
+
 def _ff_path(folder_id, folders):
     """Walk up to a known Firefox root. Returns (root_id, [folder titles...])."""
     parts, current = [], folder_id
@@ -375,6 +404,40 @@ def read_firefox(profile, workdir):
             }
         )
     return items, orphans, separators, len(folders)
+
+
+def _build_ff_tree(ff_items):
+    """Build a tree from Firefox items, using Brave root keys for consistency.
+
+    Maps Firefox roots to Brave equivalents:
+      toolbar (id=3) -> bookmark_bar, unfiled (id=5) -> other, mobile (id=6) -> synced
+      menu (id=2) -> menu (extra, emitted but Chromium ignores it)
+      tags (id=4) -> skipped (artifacts, not real bookmarks)
+    """
+    roots = {"bookmark_bar": [], "other": [], "synced": [], "menu": []}
+    root_id_to_key = {2: "menu", 3: "bookmark_bar", 5: "other", 6: "synced"}
+
+    for item in ff_items:
+        root_key = root_id_to_key.get(item["root_id"])
+        if not root_key:
+            continue
+
+        children = roots[root_key]
+        for part in item["path"]:
+            folder_name = part or "(sin título)"
+            found = None
+            for child in children:
+                if child.kind == "folder" and child.name == folder_name:
+                    found = child
+                    break
+            if found is None:
+                found = _folder(folder_name)
+                children.append(found)
+            children = found.children
+
+        children.append(_bookmark(item["title"] or item["url"], item["url"], item["added_us"]))
+
+    return roots
 
 
 # ----------------------------------------------------------------------------- merge
@@ -471,6 +534,110 @@ def merge(brave_roots, ff_items, attach_folder):
         "dropped_brave": dropped_brave,
         "dropped_ff": dropped_ff,
         "tag_entries": len(ff_items) - len(candidates),
+    }
+
+
+def merge_ff_canonical(ff_items, brave_roots, attach_folder):
+    """Build the unified tree: Firefox's layout, deduplicated by URL, Brave-only added.
+
+    Same dedupe rule as merge(): shallowest occurrence wins. Firefox's tree is the
+    skeleton; Brave-only bookmarks are placed under "Desde Brave" in the corresponding
+    root (bookmark_bar, other, synced).
+    """
+    dropped_brave, dropped_ff = [], []
+
+    # Build Firefox tree (uses Brave root keys for consistency)
+    ff_tree = _build_ff_tree(ff_items)
+
+    # Phase 1: for every URL, find the occurrence closest to a root.
+    best, counter = {}, itertools.count()
+
+    def scan(children, depth):
+        for node in children:
+            if node.kind == "url":
+                key = _norm_url(node.url)
+                rank = (depth, next(counter))
+                current = best.get(key)
+                if current is None or rank < current[0]:
+                    best[key] = (rank, id(node))
+            else:
+                scan(node.children, depth + 1)
+
+    for children in ff_tree.values():
+        scan(children, 1)
+
+    # Phase 2: rebuild the tree, dropping every copy that lost its URL.
+    def keep(node, trail):
+        if node.kind == "url":
+            winner = best.get(_norm_url(node.url))
+            if winner is None or winner[1] != id(node):
+                dropped_ff.append({"trail": trail, "url": node.url, "name": node.name})
+                return None
+            return _bookmark(node.name, node.url, node.added_us)
+        children = []
+        for child in node.children:
+            kept = keep(child, trail + [child.name])
+            if kept is not None:
+                children.append(kept)
+        return _folder(node.name, node.added_us, children)
+
+    merged = {}
+    for root_key, children in ff_tree.items():
+        kept = []
+        for child in children:
+            node = keep(child, [root_key, child.name])
+            if node is not None:
+                kept.append(node)
+        merged[root_key] = kept
+
+    # Brave is deduped against every URL Firefox keeps.
+    seen = {key: None for key in best}
+
+    # Phase 3: add Brave-only bookmarks under "Desde Brave" in each corresponding root.
+    brave_items = _flatten_brave(brave_roots)
+    new_items = []
+    for item in brave_items:
+        key = _norm_url(item["url"])
+        if key in seen:
+            dropped_brave.append({
+                "trail": [item["root_key"]] + item["path"] + [item["title"]],
+                "url": item["url"],
+                "name": item["title"],
+            })
+            continue
+        seen[key] = None
+        new_items.append(item)
+
+    anchor = None
+    if new_items:
+        # Group by root_key so each root gets its own "Desde Brave" folder.
+        by_root = {}
+        for item in new_items:
+            by_root.setdefault(item["root_key"], []).append(item)
+
+        for root_key, items in by_root.items():
+            root_children = merged.setdefault(root_key, [])
+            container = find_or_make_folder(root_children, "Desde Brave")
+            for item in items:
+                cursor = container
+                for part in item["path"]:
+                    cursor = find_or_make_folder(cursor.children, part or "(sin título)")
+                cursor.children.append(
+                    _bookmark(item["title"] or item["url"], item["url"], item["added_us"])
+                )
+
+        anchor = ["Desde Brave"]
+
+    # Tag entries are artifacts of Firefox's tag folders, not placed bookmarks.
+    tag_entries = sum(1 for item in ff_items if item["root_id"] == FF_TAGS_ROOT)
+
+    return {
+        "merged": merged,
+        "anchor": " / ".join(anchor) if anchor else None,
+        "placed": new_items,
+        "dropped_brave": dropped_brave,
+        "dropped_ff": dropped_ff,
+        "tag_entries": tag_entries,
     }
 
 
@@ -673,6 +840,7 @@ def build_report(args, ff_profile, brave_profile, ff_items, ff_stats, brave_root
     add("=" * 78)
     add(f"  Firefox : {ff_profile}")
     add(f"  Brave   : {brave_profile}")
+    add(f"  Canonico: {args.canonical}")
     add(f"  Modo    : {'APPLY' if args.apply else 'DRY-RUN (no se toca ningun browser)'}")
     add("")
 
@@ -687,18 +855,31 @@ def build_report(args, ff_profile, brave_profile, ff_items, ff_stats, brave_root
     add("")
 
     add("-- Duplicados eliminados " + "-" * 53)
-    add(f"  Dentro de Brave          : {len(result['dropped_brave']):5d}")
-    add(f"  Firefox (ya estaban en Brave): {len(result['dropped_ff']):5d}")
+    if args.canonical == "firefox":
+        add(f"  Dentro de Firefox         : {len(result['dropped_ff']):5d}")
+        add(f"  Brave (ya estaban en FF)  : {len(result['dropped_brave']):5d}")
+    else:
+        add(f"  Dentro de Brave          : {len(result['dropped_brave']):5d}")
+        add(f"  Firefox (ya estaban en Brave): {len(result['dropped_ff']):5d}")
     for item in result["dropped_brave"][: args.max_examples]:
         add(f"     - [br] {'/'.join(item['trail'][:4])}  ->  {item['url'][:70]}")
     add("")
 
-    add("-- Exclusivos de Firefox (preservados) " + "-" * 39)
+    if args.canonical == "firefox":
+        add("-- Exclusivos de Brave (preservados) " + "-" * 39)
+    else:
+        add("-- Exclusivos de Firefox (preservados) " + "-" * 39)
     add(f"  Total reubicado : {len(result['placed'])}")
     if result["anchor"]:
-        add(f"  Destino         : {result['anchor']} / Desde Firefox")
+        if args.canonical == "firefox":
+            add(f"  Destino         : {result['anchor']}")
+        else:
+            add(f"  Destino         : {result['anchor']} / Desde Firefox")
     for item in result["placed"][: args.max_examples]:
-        trail = " / ".join([FF_ROOT_LABELS[item["root_id"]]] + item["path"])
+        if args.canonical == "firefox":
+            trail = " / ".join([item["root_key"]] + item["path"])
+        else:
+            trail = " / ".join([FF_ROOT_LABELS[item["root_id"]]] + item["path"])
         add(f"     - {trail[:60]}  ->  {item['url'][:60]}")
     add("")
 
@@ -763,8 +944,12 @@ def main(argv=None):
                         help="restaura los archivos desde un snapshot y sale")
     parser.add_argument("--ff-profile", help="ruta del perfil de Firefox")
     parser.add_argument("--brave-profile", help="ruta del perfil de Brave")
+    parser.add_argument("--canonical", choices=("brave", "firefox"), default="brave",
+                        help="estructura de carpetas canónica: 'brave' o 'firefox' "
+                             "(default: brave)")
     parser.add_argument("--attach-folder", default="Favoritos",
-                        help="carpeta (dentro de la barra de Brave) donde colgar 'Desde Firefox'")
+                        help="carpeta donde colgar 'Desde Firefox' (solo --canonical brave; "
+                             "en firefox se usa 'Desde Brave' en la raíz)")
     parser.add_argument("--out", default=str(SCRIPT_DIR / "out"),
                         help="carpeta de salida para previews y artefactos")
     parser.add_argument("--snapshots", default=str(SCRIPT_DIR / "snapshots"),
@@ -824,7 +1009,10 @@ def main(argv=None):
 
     brave_meta, brave_roots = read_brave(brave_file)
 
-    result = merge(brave_roots, ff_items, args.attach_folder)
+    if args.canonical == "firefox":
+        result = merge_ff_canonical(ff_items, brave_roots, args.attach_folder)
+    else:
+        result = merge(brave_roots, ff_items, args.attach_folder)
     if args.no_dedupe:
         merged_all = {}
         for root_key, children in brave_roots.items():
