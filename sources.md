@@ -51,3 +51,7 @@ https://atareao.es/podcast/sqlite-utils-tu-navaja-suiza-para-sqlite/
 ### Path bookmarks Brave
 
 /home/javier/.config/BraveSoftware/Brave-Browser/Default
+
+### Path bookmarks Chromium
+
+/home/javier/.config/chromium/Default
