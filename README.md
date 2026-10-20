@@ -110,7 +110,7 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical firefox \
 
 ## Interfaz Gráfica (GUI)
 
-`bookmarks_gui.py` ofrece el CLI completo en una ventana tkinter (solo stdlib). No duplica lógica: construye el mismo comando y lo ejecuta por subprocess, y enumera navegadores, pares y defaults desde `--list-browsers --json` (el registry del CLI es la única fuente de verdad). La interfaz usa un tema oscuro (`#1a1a2e` de fondo, tarjetas `#16213e` planas sin bordes) con íconos emoji en títulos y botones.
+`bookmarks_gui.py` ofrece el CLI completo en una ventana tkinter (solo stdlib). No duplica lógica: construye el mismo comando y lo ejecuta por subprocess, y enumera navegadores, pares y defaults desde `--list-browsers --json` (el registry del CLI es la única fuente de verdad). La interfaz usa un tema oscuro de grises (`#1a1a1a` de fondo, tarjetas `#232323` planas sin bordes) con íconos emoji en títulos y botones.
 
 ```bash
 python3 bookmarks_gui.py              # abre la ventana
@@ -120,9 +120,9 @@ python3 bookmarks_gui.py --self-test  # prueba la lógica pura, sin display
 - **🔀 Sincronización**: par A/B (no pueden ser iguales), canónico limitado a los dos miembros y `--only`.
 - **👤 Perfiles**: una fila por navegador del registro; solo los miembros del par quedan activos (el resto, deshabilitados) y el campo muestra en gris el perfil por defecto hasta que se lo edita (si queda igual al default, no se envía el flag). "📂 Examinar…" avisa si no encuentra `places.sqlite` (Firefox) o `Bookmarks` (Chromium), pero conserva la ruta elegida.
 - **⚙ Opciones**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe` y `--force`.
-- **⚡ Acciones**: previsualización (dry-run) con la salida en vivo, `--apply` y `--restore` con diálogo de confirmación que resume par, canónico y qué almacén se escribe automáticamente vs. a mano, y acceso directo a `out/` y `report.txt`. Al final de la fila, "✖ Cerrar" sale por el mismo camino seguro que el botón de la ventana.
+- **⚡ Acciones**: previsualización (solo lectura), `--apply` y `--restore` con diálogo de confirmación que resume par, canónico y qué almacén se escribe automáticamente vs. a mano, acceso directo a `out/` y `report.txt`, y "↺ Valores por defecto" para volver todos los campos y selecciones al estado inicial. Al final de la fila, "✖ Cerrar" sale por el mismo camino seguro que el botón de la ventana.
 
-Mientras corre un proceso, los botones de acción quedan deshabilitados (el de cerrar sigue activo); cerrar la ventana con una corrida activa pide confirmación y termina el subprocess. La sección **📋 Salida** muestra el log del CLI y su botón "🧹 Limpiar" vive en el encabezado de la sección, junto al título.
+La GUI no muestra un panel de log: el CLI escribe el detalle completo en `out/report.txt` (accesible con "🧾 Abrir report.txt"). El avance se sigue en la barra de estado inferior —"⏳ Proceso en curso…" con el comando, y "✅ Proceso finalizado (código N)." al terminar—; una salida distinta de cero abre un diálogo con el código y la ruta del reporte. Mientras corre un proceso, los botones de acción quedan deshabilitados (el de cerrar sigue activo); cerrar la ventana con una corrida activa pide confirmación y termina el subprocess.
 
 ## Cómo Funciona
 

@@ -184,8 +184,43 @@ Dato aclarado: el Chromium "poblado" (850KB) NO lo puso el usuario — su run de
 apply partió de `Chromium: 0 bookmarks` (report.txt 17:10) y el apply copió
 Firefox adentro.
 
+## Cuarto feedback del usuario (2026-10-20, test con display) → G8
+
+- [x] **G8a — eliminar la sección "Salida"**: el ScrolledText había quedado
+      colapsado en el layout de tarjetas planas; el usuario decidió que no la
+      quiere (el reporte se abre con "🧾 Abrir report.txt" y su carpeta con
+      "📂 Abrir carpeta de salida"). Eliminados: la tarjeta completa, "🧹
+      Limpiar", `ScrolledText`, `_append_log`, `_clear_log`, `self.log`, la
+      `queue`, la fuente `mono` y `safe_configure` (sólo lo usaba el log).
+      Reemplazo del feedback: la **barra de estado** pasa a ser el canal vivo
+      (⏳ comando compactado en curso → ✅/❌ código de salida) y un **código
+      distinto de 0 abre un `messagebox`** que apunta al reporte. El proceso
+      sigue no bloqueante (Popen + poll por `after` + hilo daemon que drena la
+      tubería para que el hijo no se trabe; la salida se descarta).
+- [x] **G8b — botón "↺ Valores por defecto"**: nuevo botón neutro en Acciones.
+      Fuente única: `option_defaults()` (compartido con `build_command`) +
+      `_default_state_snapshot()` tomado de los widgets vivos en la construcción
+      → `reset_to_defaults()` re-aplica todo (par, canónico, `--only`, opciones,
+      checkboxes y rutas de perfil, que vuelven a su placeholder para no emitir
+      override). Sin diálogo de confirmación (no toca disco); aviso por status.
+      Nuevo check del self-test: "defaults de la UI → argv mínimo" (19 checks).
+      Clave: el snapshot se deriva de los widgets, no de una segunda copia
+      hardcodeada de los defaults — imposible que se desincronicen.
+- [x] **G8c — verde del accent menos brillante**: `#00ff88` → `#3ddc84`
+      (hover `#34bd71`), texto `on_accent` `#12211a` con contraste AA.
+      El verde literal del referencia pesaba demasiado en ventana completa.
+- [x] **G8d — fondos azules → escala de grises**: `window` `#1a1a1e`→`#1a1a1a`,
+      `panel` `#16213e`→`#232323`, `field` `#1f2b47`→`#2e2e2e`, borde `#3d3d3d`.
+      La jerarquía fondo < tarjeta < campo ahora es sólo por luminancia.
+- [x] **G8e — ruido de stderr del editor externo**: al abrir el reporte, `pluma`
+      escribía a la terminal los warnings de sus plugins (`libenchant`, `libaspell`,
+      `QPixmap::scaled`). No son de esta app: el `Popen` de `xdg-open` ahora
+      hereda `DEVNULL` en los tres descriptores + `start_new_session=True`, así
+      el opener queda desprendido y no ensucia la terminal que lanzó la GUI.
+
 Commits de la ronda: `5d8ebd4e chore` (artifacts del test real + snapshots/
 gitignored) → `1e5a06e0 fix(cli)` (orden de carpetas, G5a) → `fdbdeceb feat(gui)`
 (G5b+G5c + docs) → `d9cbb661 chore` (untrack del .pyc + artifacts del 2do run,
 que ya salió con el orden corregido) → `fcf140a6 feat(gui)` (G6a-G6d) →
-commit de este cambio `fix(gui)` (G7a-G7d: 2 bugs + layout + estilo clima).
+`af512910 fix(gui)` (G7a-G7d: 2 bugs + layout + estilo clima) → commit de este
+cambio `feat(gui)` (G8a-G8e).

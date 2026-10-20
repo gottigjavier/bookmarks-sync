@@ -2,22 +2,22 @@
 """Tkinter GUI for bookmarks-merge.py.
 
 Integration model: subprocess. Never imports the CLI; builds the exact argv and
-captures stdout+stderr in a log panel. The only introspection is
-``--list-browsers --json``, whose registry drives every widget.
+runs it non-blocking, reporting progress and outcomes in a status bar (the CLI
+writes its full report to out/report.txt, reachable from the window). The only
+introspection is ``--list-browsers --json``, whose registry drives every widget.
 
 Pure logic (build_command / self_test) runs without a display:
     python3 bookmarks_gui.py --self-test
 """
 
 import json
-import queue
 import subprocess
 import sys
 import threading
 from pathlib import Path
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import filedialog, messagebox, ttk
 
 SCRIPT = Path(__file__).resolve().parent / "bookmarks-merge.py"
 
@@ -27,20 +27,39 @@ DEFAULT_MAX_EXAMPLES = 15
 DEFAULT_OUT = str(SCRIPT.parent / "out")
 DEFAULT_SNAPSHOTS = str(SCRIPT.parent / "snapshots")
 
-# Single source of truth for every UI color (clima-inspired dark palette).
+
+def option_defaults():
+    """Declarative source of truth for every optional-flag widget default.
+
+    Used by the widget builders, by build_command's no-flag comparison and by
+    the reset button, so those three can never drift apart. Keys mirror the
+    widget attribute suffixes (``<name>_var``) plus the two checkboxes.
+    """
+    return {
+        "attach": DEFAULT_ATTACH_FOLDER,
+        "out": DEFAULT_OUT,
+        "snapshots": DEFAULT_SNAPSHOTS,
+        "max_examples": str(DEFAULT_MAX_EXAMPLES),
+        "no_dedupe": False,
+        "force": False,
+    }
+
+# Single source of truth for every UI color. Neutral dark-grey ramp: the
+# window < card < field steps are lightness-only (no blue tint), so surfaces
+# separate by value instead of hue.
 PALETTE = {
-    "window": "#1a1a2e",    # app background
-    "panel": "#16213e",     # card / surface background
-    "field": "#1f2b47",     # inputs (slightly lighter than the card)
-    "field_border": "#2b3a5e",
+    "window": "#1a1a1a",    # app background (darkest step)
+    "panel": "#232323",     # card / surface background
+    "field": "#2e2e2e",     # inputs (lighter than the card)
+    "field_border": "#3d3d3d",
     "text": "#ffffff",      # primary text
     "muted": "#a0a0a0",     # secondary text, status bar
     "dim": "#666666",       # tertiary text, placeholders
-    "accent": "#00ff88",    # positive / read-only actions
-    "accent_hover": "#00cc6d",
+    "accent": "#3ddc84",    # positive / read-only actions (toned-down green)
+    "accent_hover": "#34bd71",
     "danger": "#e94560",    # destructive actions
     "danger_hover": "#c7304a",
-    "on_accent": "#0f1420", # readable text on the bright accent green
+    "on_accent": "#12211a", # dark text on the accent green (AA at 8.5:1)
     "select_bg": "#e94560",
     "select_fg": "#ffffff",
 }
@@ -335,26 +354,29 @@ def self_test():
             only_token(browsers, ONLY_BOTH),
             only_token(browsers, browsers["brave"]["display"])),
            ("firefox", "brave", ONLY_BOTH, "Chromium", "both", "brave"))
+
+    # The declarative defaults must be indistinguishable from "no optional
+    # flags": the reset button and build_command share this one source.
+    defaults = option_defaults()
+    default_state = {
+        "browsers": browsers, "pair": "firefox,brave", "canonical": "firefox",
+        "only": "both", "attach_folder": defaults["attach"],
+        "out": "", "snapshots": "",
+        "max_examples": int(defaults["max_examples"]),
+        "no_dedupe": defaults["no_dedupe"], "force": defaults["force"],
+        "apply": False,
+        # Profiles reset to their placeholders (no override emitted).
+        "profiles": {name: profile_placeholder(info)
+                     for name, info in browsers.items()},
+    }
+    expect("defaults de la UI → argv mínimo",
+           build_command(default_state),
+           [sys.executable, str(SCRIPT), "--pair", "firefox,brave",
+            "--canonical", "firefox"])
     return checks
 
 
 # ----------------------------------------------------------------- GUI
-
-
-def safe_configure(widget, **options):
-    """Configure a widget, dropping any option it does not support.
-
-    ttk::style accepts unknown options silently, but widget .configure raises
-    TclError; classic tk widgets (the log pane and its scrollbar) live here.
-    """
-    try:
-        widget.configure(**options)
-    except tk.TclError:
-        for key, value in options.items():
-            try:
-                widget.configure(**{key: value})
-            except tk.TclError:
-                pass
 
 
 def apply_theme(root, style):
@@ -474,8 +496,6 @@ def load_fonts(root):
                                size=FONT_SIZES["section"], weight="bold"),
         "label": tkfont.Font(root, family="Helvetica", size=FONT_SIZES["label"]),
         "small": tkfont.Font(root, family="Helvetica", size=FONT_SIZES["small"]),
-        "mono": tkfont.Font(root, family="DejaVu Sans Mono",
-                            size=FONT_SIZES["label"]),
     }
     return fonts, emoji_family
 
@@ -511,8 +531,6 @@ class BookmarksGui:
         self.browsers = {b["name"]: b for b in registry["browsers"]}
         self.pairs = registry["pairs"]
         self.proc = None
-        self.reader = None
-        self.log_queue = queue.Queue()
         self._updating = False
         self._action_buttons = []
 
@@ -532,9 +550,30 @@ class BookmarksGui:
         else:
             self._prev_a = self._prev_b = ""
         self._on_pair_change()
+        # Capture the settled startup UI once; reset_to_defaults() re-applies
+        # this exact snapshot, so the reset button can never drift or hardcode
+        # a second copy of the defaults.
+        self._defaults = self._default_state_snapshot()
         self._set_status(f"📄 Registro cargado: {len(self.browsers)} navegadores, "
                          f"{len(self.pairs)} pares.")
+        self._size_window()
         root.after(100, self._poll)
+
+    def _size_window(self):
+        """Size the window to its content (no log pane, so no tall geometry).
+
+        The layout is now a fixed vertical stack of cards plus a status bar,
+        so the natural height IS the right height. We let Tk compute it, set a
+        modest minimum so the fixed-width inputs and the action row never
+        clip, and keep the window resizable — width still has slack for the
+        long paths in the Opciones card.
+        """
+        self.root.update_idletasks()
+        width = self.root.winfo_reqwidth()
+        height = self.root.winfo_reqheight()
+        self.root.geometry(f"{width}x{height}")
+        self.root.minsize(width, height)
+        self.root.resizable(True, True)
 
     # ---- layout ------------------------------------------------------------
 
@@ -636,12 +675,13 @@ class BookmarksGui:
             browse.grid(row=row, column=2, padx=(0, 2), pady=2, sticky="w")
             self.profile_rows[name] = {"entry": entry, "browse": browse}
 
-        options = self._card(self.root, fill="x", padx=15, pady=5)
+        options = self._card(self.root, fill="x", padx=15, pady=(10, 5))
         self._section_title(options, "⚙ Opciones").grid(
             row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        self.attach_var = tk.StringVar(value=DEFAULT_ATTACH_FOLDER)
-        self.out_var = tk.StringVar(value=DEFAULT_OUT)
-        self.snapshots_var = tk.StringVar(value=DEFAULT_SNAPSHOTS)
+        opts = option_defaults()
+        self.attach_var = tk.StringVar(value=opts["attach"])
+        self.out_var = tk.StringVar(value=opts["out"])
+        self.snapshots_var = tk.StringVar(value=opts["snapshots"])
         self._option_row(options, 1, "Carpeta adjunta (--attach-folder):",
                          self.attach_var, 22)
         self._option_row(options, 2, "Carpeta de salida (--out):",
@@ -650,11 +690,11 @@ class BookmarksGui:
                          self.snapshots_var, 44, "Carpeta de snapshots")
         self._text_label(options, "Ejemplos máximos (--max-examples):").grid(
             row=4, column=0, sticky="w", pady=2)
-        self.max_examples_var = tk.StringVar(value=str(DEFAULT_MAX_EXAMPLES))
+        self.max_examples_var = tk.StringVar(value=opts["max_examples"])
         ttk.Spinbox(options, from_=0, to=1000, textvariable=self.max_examples_var,
                     width=6).grid(row=4, column=1, sticky="w", padx=4, pady=2)
-        self.no_dedupe_var = tk.BooleanVar(value=False)
-        self.force_var = tk.BooleanVar(value=False)
+        self.no_dedupe_var = tk.BooleanVar(value=opts["no_dedupe"])
+        self.force_var = tk.BooleanVar(value=opts["force"])
         ttk.Checkbutton(options, text="Sin deduplicación (--no-dedupe)",
                         variable=self.no_dedupe_var).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=2)
@@ -662,7 +702,9 @@ class BookmarksGui:
                         variable=self.force_var).grid(
             row=6, column=0, columnspan=2, sticky="w", pady=2)
 
-        actions = self._card(self.root, fill="x", padx=15, pady=5)
+        # Actions card: last one in the column, so it carries the bottom of the
+        # vertical rhythm now that the log pane is gone.
+        actions = self._card(self.root, fill="x", padx=15, pady=(10, 10))
         self._section_title(actions, "⚡ Acciones").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         buttons_row = tk.Frame(actions, bg=PALETTE["panel"])
@@ -676,6 +718,9 @@ class BookmarksGui:
             ("♻️ Restaurar snapshot…", self.on_restore, "danger"),
             ("📂 Abrir carpeta de salida", self.on_open_out, "neutral"),
             ("🧾 Abrir report.txt", self.on_open_report, "neutral"),
+            # Reset is non-destructive to disk (nothing is written), so it is a
+            # plain action: no confirmation dialog, only a status-bar message.
+            ("↺ Valores por defecto", self.reset_to_defaults, "neutral"),
         )
         for text, command, kind in specs:
             btn = flat_button(buttons_row, text, command,
@@ -687,34 +732,6 @@ class BookmarksGui:
         # while a run is active (it exists to end the run safely).
         self.close_button = flat_button(buttons_row, "✖ Cerrar", self.on_close)
         self.close_button.pack(side="right", padx=(24, 0))
-
-        log_card = self._card(self.root, fill="both", padx=15, pady=(5, 15),
-                              expand=True)
-        log_header = tk.Frame(log_card, bg=PALETTE["panel"])
-        log_header.pack(fill="x")
-        self._section_title(log_header, "📋 Salida").pack(side="left")
-        # "Limpiar" lives in the section header (not inside the log pane), so
-        # the log gains the vertical space the old button strip occupied.
-        self.clear_button = flat_button(log_header, "🧹 Limpiar", self._clear_log)
-        self.clear_button.pack(side="right")
-        # The log is the only expandable element: it grows with the window.
-        self.log = scrolledtext.ScrolledText(log_card, height=18, state="disabled",
-                                             wrap="word", relief="flat", bd=0)
-        self.log.pack(fill="both", expand=True, pady=(8, 0))
-        # ScrolledText uses classic tk widgets: themed via widget options.
-        safe_configure(self.log, background=PALETTE["window"],
-                       foreground=PALETTE["text"],
-                       insertbackground=PALETTE["text"],
-                       selectbackground=PALETTE["select_bg"],
-                       selectforeground=PALETTE["select_fg"],
-                       highlightthickness=0, borderwidth=0,
-                       font=self.fonts["mono"])
-        safe_configure(self.log.frame, background=PALETTE["window"])
-        safe_configure(self.log.vbar, background=PALETTE["field_border"],
-                       troughcolor=PALETTE["window"],
-                       activebackground=PALETTE["accent"],
-                       highlightthickness=0, borderwidth=0, relief="flat",
-                       width=11)
 
     # ---- registry-driven widgets ------------------------------------------
 
@@ -834,9 +851,66 @@ class BookmarksGui:
                          for name, row in self.profile_rows.items()},
         }
 
+    def _default_state_snapshot(self):
+        """Capture every UI value the reset button must restore.
+
+        Derived from the live widgets (not a second hardcoded copy of the
+        defaults), so nothing can drift from what the app started with.
+        """
+        return {
+            "a": self.a_var.get(),
+            "b": self.b_var.get(),
+            "canonical": self.canonical_var.get(),
+            "only": self.only_var.get(),
+            "options": {name: var.get() for name, var in self.option_vars().items()},
+            # Profile entries reset to their placeholder (empty-path state).
+            "profiles": {name: profile_placeholder(info)
+                         for name, info in self.browsers.items()},
+        }
+
+    def option_vars(self):
+        """Map the declarative option names to their live tk variables."""
+        return {
+            "attach": self.attach_var,
+            "out": self.out_var,
+            "snapshots": self.snapshots_var,
+            "max_examples": self.max_examples_var,
+            "no_dedupe": self.no_dedupe_var,
+            "force": self.force_var,
+        }
+
+    def reset_to_defaults(self):
+        """Restore every UI value captured at startup (no disk side effects).
+
+        Profile fields go back to their placeholder hint, so no profile
+        override is emitted; pair/canonical/--only go back to the startup
+        selection; option fields and checkboxes return to their CLI defaults.
+        """
+        d = self._defaults
+        self.a_var.set(d["a"])
+        self.b_var.set(d["b"])
+        self._prev_a, self._prev_b = d["a"], d["b"]
+        for name, var in self.option_vars().items():
+            var.set(d["options"][name])
+        self.canonical_var.set(d["canonical"])
+        self.only_var.set(d["only"])
+        for name, row in self.profile_rows.items():
+            entry = row["entry"]
+            entry.delete(0, "end")
+            entry.insert(0, d["profiles"][name])
+            entry.configure(foreground=PLACEHOLDER_FG)
+        # Rebuild canonical/--only for the restored pair and re-sync row states.
+        self._on_pair_change()
+        self._set_status("↺ Valores restaurados a por defecto.")
+
     def _apply_summary(self, state):
-        """Confirmation summary based on the CLI's documented write-back matrix."""
-        # Pair order mirrors the argv so the summary never contradicts the log line.
+        """Confirmation summary based on the CLI's documented write-back matrix.
+
+        This dialog is the only pre-flight detail the user gets (there is no
+        log pane to inspect afterwards), so it restates the pair, the canonical
+        and the exact write-back per member, and points at out/report.txt.
+        """
+        # Pair order mirrors the argv so the order here never surprises.
         members = [m.strip() for m in state["pair"].split(",") if m.strip()]
         canonical, only = state["canonical"], state["only"]
         auto = ([m for m in members if m != "firefox"] if "firefox" in members
@@ -858,13 +932,13 @@ class BookmarksGui:
             if m != "firefox" and m not in auto and only in ("both", m):
                 lines.append(f"{self._display(m)}: copia manual del artefacto "
                              "sobre su almacén (miembro no canónico)")
-        lines += ["", "Se tomará un snapshot antes de escribir.", "¿Continuar?"]
+        lines += ["", "Se tomará un snapshot antes de escribir.",
+                  f"El detalle completo queda en {out / 'report.txt'}.", "¿Continuar?"]
         return "\n".join(lines)
 
     def _report_input_error(self, exc, dialog):
-        msg = f"Entrada inválida: {exc}"
+        msg = f"⚠️ Entrada inválida: {exc}"
         self._set_status(msg)
-        self._append_log(msg)
         if dialog:
             messagebox.showerror("Entrada inválida", str(exc))
 
@@ -921,7 +995,16 @@ class BookmarksGui:
         if not ok:
             self._set_status(f"No existe: {path}")
             return
-        subprocess.Popen(["xdg-open", str(path)])
+        # Detach fully: the opener's own stderr (e.g. Gtk editor plugin
+        # warnings) belongs to the opener, not to this app, and must not
+        # land in the terminal that launched the GUI.
+        subprocess.Popen(
+            ["xdg-open", str(path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 
     # ---- process orchestration --------------------------------------------
 
@@ -933,56 +1016,67 @@ class BookmarksGui:
                                                        confirm_summary):
             self._set_status("Operación cancelada por el usuario.")
             return
-        self._clear_log()
-        self._append_log("$ " + " ".join(cmd))
         try:
-            # errors="replace": one undecodable byte must never kill the stream.
+            # Non-blocking: output is discarded (the CLI writes out/report.txt),
+            # but the child must not stall on a full pipe, so stdout+stderr are
+            # consumed by a daemon thread rather than left unread.
             self.proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, errors="replace", bufsize=1, cwd=SCRIPT.parent)
         except OSError as exc:
             self.proc = None
-            self._append_log(f"Error al lanzar el proceso: {exc}")
+            self._set_status(f"❌ No se pudo lanzar el proceso: {exc}")
+            messagebox.showerror(
+                "No se pudo lanzar el proceso",
+                f"No se pudo ejecutar el CLI:\n{exc}")
             return
-        self.reader = threading.Thread(target=self._read_output,
-                                       args=(self.proc, self.log_queue),
-                                       daemon=True)
-        self.reader.start()
+        self._drainer = threading.Thread(target=self._drain_output,
+                                          args=(self.proc,), daemon=True)
+        self._drainer.start()
         self._set_running(True)
-        self._set_status("⏳ Proceso en curso…")
+        self._set_status(f"⏳ Proceso en curso… {self._compact_cmd(cmd)}")
 
     @staticmethod
-    def _read_output(proc, log_queue):
+    def _drain_output(proc):
+        """Consume the child's pipe so it never blocks; output is not shown."""
         try:
-            for line in iter(proc.stdout.readline, ""):
-                log_queue.put(line.rstrip("\n"))
-        except Exception as exc:  # noqa: BLE001 - never die silently mid-stream
-            log_queue.put(f"[error leyendo la salida del proceso: {exc}]")
+            for _line in iter(proc.stdout.readline, ""):
+                pass
+        except Exception:  # noqa: BLE001 - drain thread must never raise
+            pass
+
+    @staticmethod
+    def _compact_cmd(cmd):
+        """Short, layout-safe form of the argv for the status bar."""
+        # Drop the interpreter + script path (the same for every run) and
+        # collapse the absolute paths so the line stays readable in one row.
+        args = cmd[2:]
+        home = str(Path.home())
+        args = [a.replace(home, "~") for a in args]
+        text = " ".join(args)
+        return text if len(text) <= 90 else text[:87] + "…"
 
     def _poll(self):
         try:
-            done_draining = False
-            while not done_draining:
-                try:
-                    line = self.log_queue.get_nowait()
-                except queue.Empty:
-                    done_draining = True
-                else:
-                    self._append_log(line)
-            if (self.proc is not None and self.proc.poll() is not None
-                    and (self.reader is None or not self.reader.is_alive())):
+            if self.proc is not None and self.proc.poll() is not None:
                 code = self.proc.returncode
                 self.proc = None
-                self._append_log(f"[proceso terminado — código de salida {code}]")
                 self._set_running(False)
-                self._set_status(f"✅ Proceso finalizado (código {code}).")
+                if code == 0:
+                    self._set_status("✅ Proceso finalizado (código 0).")
+                else:
+                    self._set_status(f"❌ Proceso finalizado con código {code}.")
+                    messagebox.showerror(
+                        "El proceso terminó con errores",
+                        f"El proceso terminó con código {code}.\n"
+                        f"Revisá el reporte en {self._report_path()}.")
         except Exception as exc:  # noqa: BLE001 - a failed tick must not kill the timer
-            try:
-                self._append_log(f"[error interno en el polling: {exc}]")
-            except Exception:  # noqa: BLE001 - log pane may be gone during teardown
-                pass
+            self._set_status(f"❌ Error interno en el seguimiento del proceso: {exc}")
         finally:
             self.root.after(100, self._poll)
+
+    def _report_path(self):
+        return Path(self.out_var.get() or DEFAULT_OUT).expanduser() / "report.txt"
 
     def on_close(self):
         if self.proc is not None and self.proc.poll() is None:
@@ -999,17 +1093,6 @@ class BookmarksGui:
     def _set_running(self, running):
         for btn in self._action_buttons:
             btn.configure(state="disabled" if running else "normal")
-
-    def _append_log(self, text):
-        self.log.configure(state="normal")
-        self.log.insert("end", text + "\n")
-        self.log.see("end")
-        self.log.configure(state="disabled")
-
-    def _clear_log(self):
-        self.log.configure(state="normal")
-        self.log.delete("1.0", "end")
-        self.log.configure(state="disabled")
 
     def _set_status(self, text):
         self.status_var.set(text)
