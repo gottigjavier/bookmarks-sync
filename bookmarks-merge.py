@@ -114,16 +114,22 @@ BROWSERS = {
         "display": "Firefox",
         "kind": "firefox",
         "comms": ("firefox", "firefox-bin", "firefox-esr"),
+        "profile_base": "~/.mozilla/firefox",
+        "profile_flag": "--ff-profile",
     },
     "brave": {
         "display": "Brave",
         "kind": "chromium",
         "comms": ("brave", "brave-browser"),
+        "profile_base": "~/.config/BraveSoftware/Brave-Browser",
+        "profile_flag": "--brave-profile",
     },
     "chromium": {
         "display": "Chromium",
         "kind": "chromium",
         "comms": ("chromium", "chromium-browser"),
+        "profile_base": "~/.config/chromium",
+        "profile_flag": "--chromium-profile",
     },
 }
 
@@ -133,6 +139,25 @@ VALID_PAIRS = ("firefox,brave", "firefox,chromium", "brave,chromium")
 
 BROWSER_COMMS = {comm for info in BROWSERS.values() for comm in info["comms"]}
 COMM_TO_BROWSER = {comm: name for name, info in BROWSERS.items() for comm in info["comms"]}
+
+
+def registry_document():
+    """Machine-readable registry for tooling like the tkinter GUI (--list-browsers)."""
+    return {
+        "script_version": SCRIPT_VERSION,
+        "pairs": list(VALID_PAIRS),
+        "browsers": [
+            {
+                "name": name,
+                "display": info["display"],
+                "kind": info["kind"],
+                "comms": list(info["comms"]),
+                "profile_base": info["profile_base"],
+                "profile_flag": info["profile_flag"],
+            }
+            for name, info in BROWSERS.items()
+        ],
+    }
 
 
 # --------------------------------------------------------------------------- model
@@ -289,7 +314,7 @@ def running_browsers():
 def resolve_firefox_profile(explicit):
     if explicit:
         return Path(explicit).expanduser()
-    base = Path.home() / ".mozilla" / "firefox"
+    base = Path(BROWSERS["firefox"]["profile_base"]).expanduser()
     ini = base / "profiles.ini"
     if ini.is_file():
         sections, current = {}, None
@@ -320,7 +345,7 @@ def resolve_firefox_profile(explicit):
 def resolve_brave_profile(explicit):
     if explicit:
         return Path(explicit).expanduser()
-    base = Path.home() / ".config" / "BraveSoftware" / "Brave-Browser"
+    base = Path(BROWSERS["brave"]["profile_base"]).expanduser()
     if (base / "Default" / "Bookmarks").is_file():
         return base / "Default"
     if base.is_dir():
@@ -333,7 +358,7 @@ def resolve_brave_profile(explicit):
 def resolve_chromium_profile(explicit):
     if explicit:
         return Path(explicit).expanduser()
-    base = Path.home() / ".config" / "chromium"
+    base = Path(BROWSERS["chromium"]["profile_base"]).expanduser()
     if (base / "Default" / "Bookmarks").is_file():
         return base / "Default"
     if base.is_dir():
@@ -1046,7 +1071,19 @@ def main(argv=None):
     parser.add_argument("--max-examples", type=int, default=15,
                         help="cuantas entradas de ejemplo mostrar en el reporte")
     parser.add_argument("--no-dedupe", action="store_true", help="desactiva el dedupe (debug)")
+    parser.add_argument("--list-browsers", action="store_true",
+                        help="imprime en JSON los navegadores, pares y rutas por defecto "
+                             "que conoce la herramienta (consumido por la GUI) y sale")
+    parser.add_argument("--json", action="store_true",
+                        help="formato JSON de salida (solo valido con --list-browsers)")
     args = parser.parse_args(argv)
+
+    # ---- Registry introspection (used by the tkinter GUI); needs no pair. ------
+    if args.list_browsers:
+        print(json.dumps(registry_document(), indent=2, ensure_ascii=False))
+        return 0
+    if args.json:
+        raise SystemExit("--json solo tiene sentido con --list-browsers.")
 
     # ---- CLI validation. The pair drives everything below. ---------------------
     if not args.pair:
