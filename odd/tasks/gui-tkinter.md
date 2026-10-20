@@ -85,4 +85,40 @@ G1 ~25 líneas; GUI ~400-480 líneas nuevas + sección README. El total puede su
 - [x] Mapeo CLI/registro (feature chromium-pairs, 2026-10-20).
 - [x] G1 (commit CLI), G2+G3 (GUI + docs, commit aparte — verificado por escritor +
       verificador independiente + 2 rondas de corrección).
-- [ ] G4 cerrado: falta smoke con display real del usuario.
+- [x] G4: smoke con display REAL hecho por el usuario (2026-10-20, prueba
+      firefox-canónico vía GUI, apply incluido).
+
+## Feedback del usuario (primer test real, 2026-10-20) → G5
+
+- [x] **G5a — fix de orden (CLI, bug)**: en `firefox(canónico),chromium`, carpetas
+      de la barra de Firefox quedaban reordenadas al final del artefacto Chromium.
+      Diagnóstico: `read_firefox` solo lee type=1 con `ORDER BY b.parent, ...` y
+      `_build_ff_tree` creaba carpetas perezosamente al primer bookmark
+      referenciado → insertaba la carpeta al FINAL del children list del padre,
+      ignorando su `position` real. Caso real: `Favoritos` = position 0 en
+      Firefox (toolbar id 3) → salió en index 19 (último de 20). Fix:
+      `read_firefox` ahora lleva position de carpetas (dict) y bookmarks (query),
+      `_ff_path` devuelve `(title, position)` por segmento, `_build_ff_tree`
+      ordena cada children list por position (sort estable, desconocidos al
+      final, side table por `id(node)` sin tocar el shape de nodos);
+      `_adapt_ff_items` mantiene `path` como strings (forma genérica intacta).
+      Verificado: repro antes/después (`Favoritos` de última a primera, 20
+      hijos, 12 dentro), conteos idénticos (1548/384/388), determinismo
+      (sha256 idéntico), 3 edge cases de canónico vacío OK, dirección
+      chromium-canónica intacta. 0 carpetas vacías en el FF del usuario → no
+      había pérdida, solo orden. `firefox-restore.json` se corrige con el mismo
+      skeleton.
+- [ ] **G5b — GUI: log más alto** (el usuario: "la sección de Logs tiene muy
+      pocas líneas de altura").
+- [ ] **G5c — GUI: "Perfiles" a la derecha de "Sincronización"** (hoy abajo),
+      estrechando Perfiles: los defaults pasan de labels externos ("Por
+      defecto: …") a **placeholder dentro del input** (editable, estilo de la
+      sección "Opciones"). Firefox placeholder = auto/profiles.ini; chromium =
+      `<profile_base>/Default`. `build_command` trata placeholder como vacío.
+
+Dato aclarado: el Chromium "poblado" (850KB) NO lo puso el usuario — su run de
+apply partió de `Chromium: 0 bookmarks` (report.txt 17:10) y el apply copió
+Firefox adentro.
+
+Commits: `5d8ebd4e chore` (artifacts de su test + snapshots/ gitignored); fix
+G5a = commit de este cambio (bookmarks-merge.py + este doc).

@@ -432,15 +432,15 @@ def _flatten_chromium_node(node, root_key, path, items):
 
 
 def _ff_path(folder_id, folders):
-    """Walk up to a known Firefox root. Returns (root_id, [folder titles...])."""
+    """Walk up to a known Firefox root. Returns (root_id, [(folder title, position)...])."""
     parts, current = [], folder_id
     for _ in range(500):
         if current in FF_ROOT_LABELS:
             return current, list(reversed(parts))
         if current == FF_ORPHAN_ROOT or current not in folders:
             return None, []
-        parent, title = folders[current]
-        parts.append(title)
+        parent, position, title = folders[current]
+        parts.append((title, position))
         current = parent
     return None, []
 
@@ -461,14 +461,14 @@ def read_firefox(profile, workdir):
     try:
         con.execute("PRAGMA query_only = 1")
         folders = {
-            fid: (parent, title or "")
-            for fid, parent, title in con.execute(
-                "SELECT id, parent, title FROM moz_bookmarks WHERE type = 2"
+            fid: (parent, position, title or "")
+            for fid, parent, position, title in con.execute(
+                "SELECT id, parent, position, title FROM moz_bookmarks WHERE type = 2"
             )
         }
         rows = con.execute(
             """
-            SELECT b.parent, b.title, p.url, b.dateAdded
+            SELECT b.parent, b.title, p.url, b.dateAdded, b.position
             FROM moz_bookmarks b
             JOIN moz_places p ON p.id = b.fk
             WHERE b.type = 1
@@ -482,7 +482,7 @@ def read_firefox(profile, workdir):
         con.close()
 
     items, orphans = [], 0
-    for parent, title, url, added in rows:
+    for parent, title, url, added, position in rows:
         if not url:
             continue
         root_id, parts = _ff_path(parent, folders)
@@ -496,6 +496,7 @@ def read_firefox(profile, workdir):
                 "title": title or "",
                 "url": url,
                 "added_us": int(added or 0) + WINDOWS_EPOCH_OFFSET_US,
+                "position": int(position or 0),
             }
         )
     return items, orphans, separators, len(folders)
@@ -508,8 +509,15 @@ def _build_ff_tree(ff_items):
       toolbar (id=3) -> bookmark_bar, unfiled (id=5) -> other, mobile (id=6) -> synced
       menu (id=2) -> menu (extra, emitted but Chromium ignores it)
       tags (id=4) -> skipped (artifacts, not real bookmarks)
+
+    Folders are still created lazily (at the first bookmark that lands in them),
+    but every node's Firefox position is recorded in a side table and each
+    children list is sorted by it before returning, so the emitted order matches
+    the order the user sees in Firefox. The side table keys on id(node) to keep
+    the Node shape untouched (emitters and the merge scan assume it).
     """
     roots = {"bookmark_bar": [], "other": [], "synced": [], "menu": []}
+    positions = {}
 
     for item in ff_items:
         root_key = FF_ROOT_ID_TO_KEY.get(item["root_id"])
@@ -518,7 +526,8 @@ def _build_ff_tree(ff_items):
 
         children = roots[root_key]
         for part in item["path"]:
-            folder_name = part or "(sin título)"
+            name, folder_position = part
+            folder_name = name or "(sin título)"
             found = None
             for child in children:
                 if child.kind == "folder" and child.name == folder_name:
@@ -527,9 +536,21 @@ def _build_ff_tree(ff_items):
             if found is None:
                 found = _folder(folder_name)
                 children.append(found)
+            positions[id(found)] = folder_position
             children = found.children
 
-        children.append(_bookmark(item["title"] or item["url"], item["url"], item["added_us"]))
+        node = _bookmark(item["title"] or item["url"], item["url"], item["added_us"])
+        children.append(node)
+        positions[id(node)] = item["position"]
+
+    def sort_children(children):
+        children.sort(key=lambda c: positions.get(id(c), 10**9))
+        for child in children:
+            if child.kind == "folder":
+                sort_children(child.children)
+
+    for root_children in roots.values():
+        sort_children(root_children)
 
     return roots
 
@@ -555,7 +576,7 @@ def _adapt_ff_items(ff_items):
         flat.append({
             "root_key": root_key,
             "root_label": FF_ROOT_LABELS[item["root_id"]],
-            "path": item["path"],
+            "path": [name for name, _position in item["path"]],
             "title": item["title"],
             "url": item["url"],
             "added_us": item["added_us"],
