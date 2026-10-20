@@ -108,6 +108,22 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical firefox \
   --brave-profile ~/.config/BraveSoftware/Brave-Browser/Default
 ```
 
+## Interfaz Gráfica (GUI)
+
+`bookmarks_gui.py` ofrece el CLI completo en una ventana tkinter (solo stdlib). No duplica lógica: construye el mismo comando y lo ejecuta por subprocess, y enumera navegadores, pares y defaults desde `--list-browsers --json` (el registry del CLI es la única fuente de verdad).
+
+```bash
+python3 bookmarks_gui.py              # abre la ventana
+python3 bookmarks_gui.py --self-test  # prueba la lógica pura, sin display
+```
+
+- **Sincronización**: par A/B (no pueden ser iguales), canónico limitado a los dos miembros y `--only`.
+- **Perfiles**: una fila por navegador del registro; solo los miembros del par quedan activos (el resto, deshabilitados) y el campo vacío usa el perfil por defecto. "Examinar…" avisa si no encuentra `places.sqlite` (Firefox) o `Bookmarks` (Chromium), pero conserva la ruta elegida.
+- **Opciones**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe` y `--force`.
+- **Acciones**: previsualización (dry-run) con log en vivo, `--apply` y `--restore` con diálogo de confirmación que resume par, canónico y qué almacén se escribe automáticamente vs. a mano, y acceso directo a `out/` y `report.txt`.
+
+Mientras corre un proceso, los botones quedan deshabilitados; cerrar la ventana con una corrida activa pide confirmación y termina el subprocess.
+
 ## Cómo Funciona
 
 ### Modelo de merge
