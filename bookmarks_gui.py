@@ -44,6 +44,65 @@ def fetch_registry():
     return json.loads(proc.stdout)
 
 
+def profile_placeholder(info):
+    """In-field hint naming the CLI's default profile for this browser.
+
+    profile_base in the registry is the base dir, NOT the profile: the CLI
+    resolves the active Firefox profile from profiles.ini and uses the Default
+    dir for chromium-family browsers.
+    """
+    if info["kind"] == "firefox":
+        return "Auto (profiles.ini)"
+    return f"{info['profile_base']}/Default"
+
+
+def _is_default_profile(value, info):
+    """True when a profile entry shows its placeholder or the default path.
+
+    Those cases must NOT emit a profile flag: default == explicit same value.
+    """
+    try:
+        placeholder = profile_placeholder(info)
+    except KeyError:  # degraded/partial registry entry
+        return False
+    if value == placeholder:
+        return True
+    try:
+        return value == str(Path(placeholder).expanduser())
+    except (RuntimeError, OSError, ValueError):
+        return False
+
+
+PLACEHOLDER_FG = "#9a9a9a"
+REAL_FG = "#000000"
+
+
+def attach_placeholder(entry, placeholder):
+    """Show `placeholder` as gray hint text while `entry` is empty.
+
+    Focusing clears the hint and restores the normal text color; blurring
+    restores the hint when the field was left empty.
+    """
+
+    def show_hint():
+        entry.delete(0, "end")
+        entry.insert(0, placeholder)
+        entry.configure(foreground=PLACEHOLDER_FG)
+
+    def on_focus_in(_event):
+        if entry.get() == placeholder:
+            entry.delete(0, "end")
+        entry.configure(foreground=REAL_FG)
+
+    def on_focus_out(_event):
+        if not entry.get().strip():
+            show_hint()
+
+    entry.bind("<FocusIn>", on_focus_in)
+    entry.bind("<FocusOut>", on_focus_out)
+    show_hint()
+
+
 def build_command(state):
     """Turn a plain dict state into the full CLI argv.
 
@@ -90,11 +149,13 @@ def build_command(state):
 
     # Profile overrides: only for pair members with a non-empty entry, using the
     # registry's own flag (--ff-profile / --brave-profile / --chromium-profile).
+    # Placeholder/default values count as empty (no flag emitted).
     profiles = state.get("profiles") or {}
     for name in browsers:  # registry order keeps the argv deterministic
+        info = browsers[name]
         value = str(profiles.get(name, "") or "").strip()
-        if name in members and value:
-            cmd += [browsers[name]["profile_flag"], value]
+        if name in members and value and not _is_default_profile(value, info):
+            cmd += [info["profile_flag"], value]
     return cmd
 
 
@@ -172,6 +233,26 @@ def self_test():
             "--canonical", "firefox", "--ff-profile", "/x/ff",
             "--chromium-profile", "/x/ch"])
 
+    # Placeholder/default values read from the profile fields count as empty.
+    ff_ph = profile_placeholder(browsers["firefox"])
+    ch_ph = profile_placeholder(browsers["chromium"])
+    expect("placeholders no emiten flag de perfil",
+           build_command({**base, "pair": "firefox,brave", "canonical": "brave",
+                          "profiles": {"firefox": ff_ph,
+                                       "brave": profile_placeholder(browsers["brave"])}}),
+           [sys.executable, str(SCRIPT), "--pair", "firefox,brave",
+            "--canonical", "brave"])
+    expect("valor igual al default (literal) omite el flag",
+           build_command({**base, "pair": "brave,chromium", "canonical": "chromium",
+                          "profiles": {"chromium": ch_ph}}),
+           [sys.executable, str(SCRIPT), "--pair", "brave,chromium",
+            "--canonical", "chromium"])
+    expect("valor igual al default (expandido) omite el flag",
+           build_command({**base, "pair": "brave,chromium", "canonical": "chromium",
+                          "profiles": {"chromium": str(Path(ch_ph).expanduser())}}),
+           [sys.executable, str(SCRIPT), "--pair", "brave,chromium",
+            "--canonical", "chromium"])
+
     # Invalid state: canonical not in the pair -> ValueError.
     raises("canónico fuera del par lanza ValueError",
            {**base, "pair": "firefox,brave", "canonical": "chromium"})
@@ -229,8 +310,10 @@ class BookmarksGui:
         ttk.Label(status_frame, textvariable=self.status_var,
                   foreground="#555").pack(fill="x")
 
-        sync = ttk.LabelFrame(self.root, text="Sincronización", padding=8)
-        sync.pack(fill="x", padx=8, pady=(8, 4))
+        top = ttk.Frame(self.root)
+        top.pack(fill="x", padx=8, pady=(8, 4))
+        sync = ttk.LabelFrame(top, text="Sincronización", padding=8)
+        sync.pack(side="left", fill="x", expand=True)
         self.a_var, self.b_var = tk.StringVar(), tk.StringVar()
         self.pair_combos = []
         for col, (label, var) in enumerate((("Navegador A", self.a_var),
@@ -253,21 +336,19 @@ class BookmarksGui:
                                        state="readonly", width=14)
         self.only_combo.grid(row=2, column=1, sticky="w", pady=(6, 0))
 
-        profiles = ttk.LabelFrame(self.root, text="Perfiles", padding=8)
-        profiles.pack(fill="x", padx=8, pady=4)
+        profiles = ttk.LabelFrame(top, text="Perfiles", padding=8)
+        profiles.pack(side="left", fill="x", padx=(8, 0))
         self.profile_rows = {}
         for row, (name, info) in enumerate(self.browsers.items()):
             ttk.Label(profiles, text=info["display"] + ":").grid(
                 row=row, column=0, sticky="w", pady=2)
-            entry = ttk.Entry(profiles, width=44)
-            entry.grid(row=row, column=1, padx=4, pady=2)
-            hint = ttk.Label(profiles, foreground="#777",
-                             text=self._profile_hint(info))
-            hint.grid(row=row, column=2, sticky="w", padx=4)
+            entry = ttk.Entry(profiles, width=30)
+            entry.grid(row=row, column=1, padx=(2, 4), pady=2)
+            attach_placeholder(entry, profile_placeholder(info))
             browse = ttk.Button(profiles, text="Examinar…", width=11,
                                 command=lambda n=name: self._browse_profile(n))
-            browse.grid(row=row, column=3, padx=4, pady=2)
-            self.profile_rows[name] = {"entry": entry, "browse": browse, "hint": hint}
+            browse.grid(row=row, column=2, padx=(0, 2), pady=2)
+            self.profile_rows[name] = {"entry": entry, "browse": browse}
 
         options = ttk.LabelFrame(self.root, text="Opciones", padding=8)
         options.pack(fill="x", padx=8, pady=4)
@@ -313,7 +394,8 @@ class BookmarksGui:
         header = ttk.Frame(log_frame)
         header.pack(fill="x")
         ttk.Button(header, text="Limpiar", command=self._clear_log).pack(side="right")
-        self.log = scrolledtext.ScrolledText(log_frame, height=12, state="disabled",
+        # The log is the only expandable element: it grows with the window.
+        self.log = scrolledtext.ScrolledText(log_frame, height=20, state="disabled",
                                              wrap="word")
         self.log.pack(fill="both", expand=True, pady=(4, 0))
 
@@ -334,13 +416,6 @@ class BookmarksGui:
         # Degraded registry (fetch failure): unknown names fall back to themselves.
         info = self.browsers.get(name)
         return info["display"] if info else name
-
-    def _profile_hint(self, info):
-        # profile_base is the base dir, NOT the profile: the CLI resolves the
-        # active Firefox profile from profiles.ini and the chromium Default dir.
-        if info["kind"] == "firefox":
-            return "Por defecto: perfil activo de profiles.ini"
-        return f"Por defecto: {info['profile_base']}/Default"
 
     def _on_browser_change(self, which):
         if self._updating:
@@ -384,8 +459,6 @@ class BookmarksGui:
             active = name in members
             row["entry"].configure(state="normal" if active else "disabled")
             row["browse"].configure(state="normal" if active else "disabled")
-            row["hint"].configure(
-                foreground="#777" if active else "#bbb")
         self._set_status(f"Par activo: {members[0]},{members[1]} — "
                          f"canónico: {self._display(self.canonical_var.get())}")
 
@@ -404,6 +477,7 @@ class BookmarksGui:
         entry = self.profile_rows[name]["entry"]
         entry.delete(0, "end")
         entry.insert(0, chosen)
+        entry.configure(foreground=REAL_FG)  # a picked path is a real value
 
     def _pick_dir(self, var, title):
         chosen = filedialog.askdirectory(title=title)

@@ -108,17 +108,24 @@ G1 ~25 líneas; GUI ~400-480 líneas nuevas + sección README. El total puede su
       chromium-canónica intacta. 0 carpetas vacías en el FF del usuario → no
       había pérdida, solo orden. `firefox-restore.json` se corrige con el mismo
       skeleton.
-- [ ] **G5b — GUI: log más alto** (el usuario: "la sección de Logs tiene muy
-      pocas líneas de altura").
-- [ ] **G5c — GUI: "Perfiles" a la derecha de "Sincronización"** (hoy abajo),
-      estrechando Perfiles: los defaults pasan de labels externos ("Por
-      defecto: …") a **placeholder dentro del input** (editable, estilo de la
-      sección "Opciones"). Firefox placeholder = auto/profiles.ini; chromium =
-      `<profile_base>/Default`. `build_command` trata placeholder como vacío.
+- [x] **G5b — GUI: log más alto**: ScrolledText 12 → 20 filas; el log es el único
+      elemento con `expand=True`, así crece con la ventana y el resto queda fijo.
+- [x] **G5c — GUI: "Perfiles" a la derecha de "Sincronización"**: fila superior
+      de dos columnas (Sincronización izq. / Perfiles der.); Opciones, Acciones
+      y log full-width debajo. Labels externos "Por defecto: …" eliminados →
+      **placeholder dentro del input** (gris `#9a9a9a`, FocusIn limpia,
+      FocusOut restaura si vacío; helper `attach_placeholder`). Placeholders
+      derivados del registry (`profile_placeholder`): firefox →
+      "Auto (profiles.ini)", chromium-family → `<profile_base>/Default`.
+      `build_command` trata placeholder / valor igual al default (literal o
+      expandido) como vacío → no emite `profile_flag`. self-test 14 → 17
+      checks. README ES/EN: 1 bullet ajustado por precisión (default en gris
+      dentro del campo).
 
 Dato aclarado: el Chromium "poblado" (850KB) NO lo puso el usuario — su run de
 apply partió de `Chromium: 0 bookmarks` (report.txt 17:10) y el apply copió
 Firefox adentro.
 
-Commits: `5d8ebd4e chore` (artifacts de su test + snapshots/ gitignored); fix
-G5a = commit de este cambio (bookmarks-merge.py + este doc).
+Commits de la ronda: `5d8ebd4e chore` (artifacts del test real + snapshots/
+gitignored) → `1e5a06e0 fix(cli)` (orden de carpetas, G5a) → commit de este
+cambio `feat(gui)` (G5b+G5c + docs).

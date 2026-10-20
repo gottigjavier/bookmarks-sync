@@ -118,7 +118,7 @@ python3 bookmarks_gui.py --self-test  # prueba la lógica pura, sin display
 ```
 
 - **Sincronización**: par A/B (no pueden ser iguales), canónico limitado a los dos miembros y `--only`.
-- **Perfiles**: una fila por navegador del registro; solo los miembros del par quedan activos (el resto, deshabilitados) y el campo vacío usa el perfil por defecto. "Examinar…" avisa si no encuentra `places.sqlite` (Firefox) o `Bookmarks` (Chromium), pero conserva la ruta elegida.
+- **Perfiles**: una fila por navegador del registro; solo los miembros del par quedan activos (el resto, deshabilitados) y el campo muestra en gris el perfil por defecto hasta que se lo edita (si queda igual al default, no se envía el flag). "Examinar…" avisa si no encuentra `places.sqlite` (Firefox) o `Bookmarks` (Chromium), pero conserva la ruta elegida.
 - **Opciones**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe` y `--force`.
 - **Acciones**: previsualización (dry-run) con log en vivo, `--apply` y `--restore` con diálogo de confirmación que resume par, canónico y qué almacén se escribe automáticamente vs. a mano, y acceso directo a `out/` y `report.txt`.
 

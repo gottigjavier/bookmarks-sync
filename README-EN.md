@@ -116,7 +116,7 @@ python3 bookmarks_gui.py --self-test  # test the pure logic, no display needed
 ```
 
 - **Sync**: A/B pair (they cannot be the same), canonical restricted to the two members, and `--only`.
-- **Profiles**: one row per registry browser; only the pair's members are enabled (the rest are disabled), and an empty field uses the default profile. "Browse…" warns if `places.sqlite` (Firefox) or `Bookmarks` (Chromium) is missing, but keeps the chosen path.
+- **Profiles**: one row per registry browser; only the pair's members are enabled (the rest are disabled), and the field shows the default profile in gray until edited (if it matches the default, no flag is sent). "Browse…" warns if `places.sqlite` (Firefox) or `Bookmarks` (Chromium) is missing, but keeps the chosen path.
 - **Options**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe`, and `--force`.
 - **Actions**: live-logged preview (dry-run), `--apply` and `--restore` with a confirmation dialog summarizing the pair, the canonical, and which store is written automatically vs. manually, plus direct access to `out/` and `report.txt`.
 
