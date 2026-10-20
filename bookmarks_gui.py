@@ -1020,12 +1020,87 @@ class BookmarksGui:
 
     # ---- process orchestration --------------------------------------------
 
+    def _confirm(self, title: str, body: str) -> bool:
+        """Custom confirmation dialog with monospace text, proper sizing, and color emojis.
+
+        Returns True for Yes, False for No. Mirrors messagebox.askyesno signature.
+        """
+        dlg = tk.Toplevel(self.root)
+        dlg.title(title)
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+        dlg.configure(bg=PALETTE["panel"])
+
+        # Center on parent
+        dlg.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() // 2)
+        y = self.root.winfo_rooty() + (self.root.winfo_height() // 2)
+
+        # Text widget with monospace font
+        txt = tk.Text(
+            dlg, wrap="none", height=18, width=90,
+            bg=PALETTE["panel"], fg=PALETTE["text"],
+            font=("monospace", FONT_SIZES["label"]),
+            relief="flat", bd=0, highlightthickness=1,
+            highlightbackground=PALETTE["field_border"],
+            insertbackground=PALETTE["accent"],
+        )
+        txt.insert("1.0", body)
+        txt.configure(state="disabled")
+        txt.pack(padx=16, pady=16)
+
+        # Buttons
+        btn_frame = tk.Frame(dlg, bg=PALETTE["panel"])
+        btn_frame.pack(pady=(0, 16))
+
+        result = {"value": False}
+
+        def on_yes():
+            result["value"] = True
+            dlg.destroy()
+
+        def on_no():
+            result["value"] = False
+            dlg.destroy()
+
+        yes_btn = tk.Button(
+            btn_frame, text="✅  Sí", command=on_yes,
+            bg=PALETTE["accent"], fg=PALETTE["on_accent"],
+            activebackground=PALETTE["accent_hover"],
+            activeforeground=PALETTE["on_accent"],
+            relief="flat", bd=0, padx=24, pady=8,
+            font=(self.fonts.get("label", "Helvetica"), FONT_SIZES["label"], "bold"),
+            cursor="hand2",
+        )
+        no_btn = tk.Button(
+            btn_frame, text="✖  No", command=on_no,
+            bg=PALETTE["panel"], fg=PALETTE["text"],
+            activebackground=PALETTE["field"], activeforeground=PALETTE["text"],
+            relief="flat", bd=0, padx=24, pady=8,
+            font=(self.fonts.get("label", "Helvetica"), FONT_SIZES["label"]),
+            cursor="hand2",
+        )
+        yes_btn.pack(side="left", padx=8)
+        no_btn.pack(side="left", padx=8)
+
+        # Keyboard shortcuts
+        dlg.bind("<Return>", lambda e: on_yes())
+        dlg.bind("<Escape>", lambda e: on_no())
+        yes_btn.focus_set()
+
+        # Position and wait
+        dlg.update_idletasks()
+        w, h = dlg.winfo_width(), dlg.winfo_height()
+        dlg.geometry(f"+{x - w // 2}+{y - h // 2}")
+        self.root.wait_window(dlg)
+        return result["value"]
+
     def _start(self, cmd, confirm_summary=None):
         if self.proc is not None and self.proc.poll() is None:
             self._set_status("⏳ Ya hay un proceso en curso; esperá a que termine.")
             return
-        if confirm_summary and not messagebox.askyesno("Confirmar operación",
-                                                       confirm_summary):
+        if confirm_summary and not self._confirm("Confirmar operación", confirm_summary):
             self._set_status("Operación cancelada por el usuario.")
             return
         try:
