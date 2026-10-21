@@ -47,8 +47,8 @@ Browsers store bookmarks in incompatible formats and diverge over time. Firefox 
 
 - **Pair-based sync**: exactly two browsers per run, chosen with `--pair`: `firefox,brave`, `firefox,chromium` or `brave,chromium` (order-insensitive).
 - **Explicit, mandatory Base**: `--canonical` (no default) picks whose folder layout is the skeleton (**Base**), and must be one of the pair's members. There is no implicit Base browser.
-- **Union merge**: bookmarks from both pair members are preserved; only true duplicates are removed.
-- **Smart dedupe**: keeps the shallowest occurrence of each URL (a bookmark-bar shortcut beats a copy buried three folders deep). Ties break by DFS order; the Base root is scanned first.
+- **Union merge**: bookmarks from both pair members are preserved; only true duplicates are removed, and both resulting artifacts contain exactly the same bookmarks as the merged tree.
+- **Smart dedupe**: within the Base skeleton the shallowest occurrence of each URL wins (a bar shortcut beats a copy buried three folders deep) and ties are resolved by the traversal order of the Base tree. Between the Base and the other browser the Base always wins: the other browser's copy of a URL already present in the Base is dropped, regardless of its depth.
 - **Exclusives preserved under `Desde <other browser>`**: the exact path depends on whether the Base is Chromium-family or Firefox (see *Base modes and anchoring*).
 - **Deterministic**: same inputs → same outputs. Running twice produces identical artifacts.
 - **Snapshot on every `--apply`**: automatic backup of both pair members before any write.
@@ -72,8 +72,8 @@ Browsers store bookmarks in incompatible formats and diverge over time. Firefox 
 # 1. Dry-run: see what would change (nothing is written to the browsers)
 python3 bookmarks-merge.py --pair firefox,brave --canonical brave
 
-# 2. Review the report and artifacts in out/
-cat out/report.txt
+# 2. Review the report and artifacts in <script dir>/out
+cat <script dir>/out/report.txt
 
 # 3. Apply when satisfied (close the pair's browsers first!)
 python3 bookmarks-merge.py --pair firefox,brave --canonical brave --apply
@@ -87,7 +87,7 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical brave --apply
 python3 bookmarks-merge.py --pair A,B --canonical X [OPTIONS]
 ```
 
-`--pair` and `--canonical` are both required: without them the script exits with an error (there is no default Base). Running without `--apply` is always safe: it only reads, writes previews to `out/`, and prints a report.
+`--pair` and `--canonical` are both required: without them the script exits with an error (there is no default Base). Running without `--apply` is always safe: it only reads, writes previews to the output directory (by default `<script dir>/out`), and prints a report.
 
 ### Valid pairs
 
@@ -112,11 +112,13 @@ python3 bookmarks-merge.py --pair A,B --canonical X [OPTIONS]
 | `--brave-profile PATH` | auto | Explicit Brave profile path (default: `~/.config/BraveSoftware/Brave-Browser/Default`). |
 | `--chromium-profile PATH` | auto | Explicit Chromium profile path (default: `~/.config/chromium/Default`). |
 | `--attach-folder NAME` | `Favoritos` | Folder in `bookmark_bar` where `Desde <other>` is hung. Only used when the Base is Chromium-family; ignored with `--canonical firefox`. |
-| `--out DIR` / `--out-dir DIR` | `out/` | Output directory for artifacts and reports. |
-| `--snapshots DIR` | `./snapshots` | Directory for automatic snapshots. |
+| `--out DIR` / `--out-dir DIR` | `<script dir>/out` | Output directory for artifacts and reports. |
+| `--snapshots DIR` | `<script dir>/snapshots` | Directory for automatic snapshots. |
 | `--max-examples N` | `15` | How many duplicate examples to show in the report. |
 | `--no-dedupe` | off | Disable deduplication (debug only). |
 | `-h` / `--help` | — | Show help and exit. |
+
+By default, both directories live inside the script's folder and are absolute paths; the `out/` and `snapshots/` shorthands used in the examples below mean those default directories.
 
 Only the pair members' profiles are resolved: a `brave,chromium` run never touches Firefox configuration.
 
@@ -140,7 +142,7 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical brave --apply --only
 
 # Restore a snapshot of the firefox,brave pair
 python3 bookmarks-merge.py --pair firefox,brave --canonical brave \
-  --restore snapshots/20261019-185514
+  --restore <script dir>/snapshots/20261019-185514
 
 # Explicit profile paths (only the pair's members are resolved;
 # replace the Firefox path with your own profile)
@@ -178,12 +180,14 @@ The GUI shows no log panel: the CLI writes the full detail to `out/report.txt` (
 
 1. **Read** both pair members: Firefox from a copy of `places.sqlite` (WAL replayed on the copy, never the original); Brave and Chromium from their `Bookmarks` JSON.
 2. **Build skeleton** from the Base browser's folder tree.
-3. **Dedupe** within the skeleton: for each normalized URL, keep the occurrence closest to a root (shallowest depth wins; ties go to DFS order, Base root scanned first).
+3. **Dedupe** within the skeleton: for each normalized URL, keep the occurrence closest to a root (shallowest depth wins; ties go to DFS order, following the traversal order of the Base tree).
 4. **Place exclusive bookmarks** from the other member under `Desde <other>`, preserving their original subfolder hierarchy.
 5. **Emit one artifact per pair member** in native format:
    - `out/firefox-restore.json` — only when `firefox` is in the pair. Firefox legacy JSON (manual restore via Library → Import and Backup → Restore → Choose File…)
    - `out/<browser>-bookmarks.json` — for each Chromium-family member: `out/brave-bookmarks.json` and/or `out/chromium-bookmarks.json`. Chromium JSON (direct write to the live store per *What `--apply` writes*)
    - `out/report.txt` — full merge report (also printed to stdout)
+
+Each artifact is the merged tree rendered in its browser's native format; with Firefox as the Base, the Chromium-family artifact renders the menu root inside `other`, under a `Menú de marcadores` folder.
 
 ### URL normalization
 
@@ -191,10 +195,13 @@ Two URLs are considered duplicates when they normalize to the same key:
 
 - Scheme and host lowercased
 - Leading `www.` stripped from host
-- Query string and fragment removed
-- Trailing slash stripped from path
+- Default port dropped (`:80` for http, `:443` for https)
+- Query string and fragment **preserved**
+- Trailing slash stripped from path, only when there is no query and no fragment
 
 Examples: `https://www.example.com/path/` and `https://example.com/path` are duplicates.
+
+Schemes other than http(s) (`file:`, `about:`, `javascript:`, `chrome:`, …) are compared verbatim and never normalized.
 
 ### Root mapping
 
@@ -203,7 +210,7 @@ Examples: `https://www.example.com/path/` and `https://example.com/path` are dup
 | `toolbar` (Bookmarks bar) | `bookmark_bar` | Bookmarks bar |
 | `unfiled` (Other bookmarks) | `other` | Other bookmarks |
 | `mobile` (Mobile bookmarks) | `synced` | Mobile bookmarks |
-| `menu` (Bookmarks menu) | `menu` | Extra root; Chromium ignores it |
+| `menu` (Bookmarks menu) | `other` (projected) | The Chromium family has no menu root: with Firefox as the Base, its bookmarks are projected into `other` under a `Menú de marcadores` folder, so none of them is lost |
 | `tags` (Tags) | — | Skipped; tag entries are artifacts, not bookmarks |
 
 ### Base modes and anchoring
@@ -212,11 +219,11 @@ Both modes produce the **same union** of bookmarks; only the folder organization
 
 **Chromium-family Base** (`--canonical brave` or `--canonical chromium`): the Base's tree is the skeleton. The other browser's exclusive bookmarks hang under `bookmark_bar / <attach-folder> / Desde <other> / <root label> / <original path>`. If `<attach-folder>` is missing from the bar, the bar's children are wrapped in a `Bookmarks bar` folder and the anchor hangs inside it.
 
-**`--canonical firefox`**: Firefox's tree is the skeleton. The other browser's exclusive bookmarks hang in a `Desde <other>` folder at the top of each root, preserving the original path underneath. `--attach-folder` is accepted but never used.
+**`--canonical firefox`**: Firefox's tree is the skeleton. The other browser's exclusive bookmarks hang in a `Desde <other>` folder at the top of each root, preserving the original path underneath. `--attach-folder` is accepted but never used. The Chromium format only has three roots (`bookmark_bar`, `other` and `synced`), so the other browser's artifact cannot host the `Menú de marcadores` root as-is: its bookmarks are projected into `other`, under a `Menú de marcadores` folder (the label is set by the tool, not by the browser's language). With that projection, both resulting artifacts contain exactly the same bookmarks as the merged tree: none is discarded.
 
 ## Output Artifacts
 
-After a dry-run or `--apply`, the `out/` directory contains one artifact per pair member plus the report:
+After a dry-run or `--apply`, the output directory (by default `<script dir>/out`) contains one artifact per pair member plus the report:
 
 | File | Emitted when | Format and purpose |
 |---|---|---|
@@ -259,7 +266,7 @@ In `brave,chromium` pairs the non-Base member is not written: the report prints 
 
 ## Snapshots and Rollback
 
-Every `--apply` automatically creates a snapshot in `snapshots/<timestamp>/` with one directory per pair member:
+Every `--apply` automatically creates a snapshot in `<script dir>/snapshots/<timestamp>/` with one directory per pair member:
 
 - `firefox/places.sqlite` (plus `-wal`/`-shm` if present)
 - `brave/Bookmarks` and `Bookmarks.bak` (if present); for `chromium`, the same contents under `chromium/`
@@ -271,11 +278,11 @@ Every `--apply` automatically creates a snapshot in `snapshots/<timestamp>/` wit
 
 ```bash
 # List available snapshots
-ls snapshots/
+ls <script dir>/snapshots/
 
 # Restore a snapshot of the firefox,brave pair
 python3 bookmarks-merge.py --pair firefox,brave --canonical brave \
-  --restore snapshots/20261019-185514
+  --restore <script dir>/snapshots/20261019-185514
 ```
 
 Browsers must be closed before restoring (or use `--force`).
@@ -291,7 +298,7 @@ Browsers must be closed before restoring (or use `--force`).
 | SQLite copy-on-read | `places.sqlite` is never opened in place; a copy is made and the WAL is replayed on the copy. |
 | Deterministic GUIDs | Derived with `uuid5` from a stable namespace, so re-running produces identical artifacts. |
 | Checksum omission | Chromium's `BookmarkCodec::Decode()` never reads `checksum`; the field is omitted and recomputed on the browser's next save. |
-| Verification gate | Artifacts are checked for URL count and zero duplicates before `--apply` is allowed. |
+| Verification gate | The check runs on every invocation, dry-runs included. Every artifact is compared against the merged tree: it must contain exactly the same set of normalized URLs (none missing, none extra) and zero internal duplicates. If it fails, nothing is written to the browsers' stores and the process exits with code 2; the preview artifacts are still left in the output directory. |
 
 ## Project Structure
 
@@ -302,25 +309,22 @@ IA-sync/
 ├── README.md                   # Spanish version
 ├── README-EN.md                # This file (English)
 ├── LICENSE                     # BUSL 1.1 license
-├── sources.md                  # Reference links (user-maintained)
+├── sources.md                  # Reference links (local material, not versioned)
 ├── out/                        # Generated artifacts (per the run's pair)
 │   ├── brave-bookmarks.json    #   Chromium JSON for Brave (if brave is in the pair)
 │   ├── chromium-bookmarks.json #   Chromium JSON for Chromium (if chromium is in the pair)
 │   ├── firefox-restore.json    #   Firefox legacy JSON (if firefox is in the pair)
-│   ├── report.txt              #   Merge report
-│   └── prev-*/                 #   Manual copies of previous artifacts
-├── snapshots/                  # Automatic snapshots on --apply
+│   └── report.txt              #   Merge report
+├── snapshots/                  # Automatic snapshots (created on the first --apply)
 │   └── <timestamp>/
 │       ├── firefox/            #   places.sqlite + WAL/SHM
 │       ├── brave/              #   Bookmarks + Bookmarks.bak
 │       ├── chromium/           #   Bookmarks + Bookmarks.bak (if chromium is in the pair)
 │       └── manifest.json       #   SHA-256 hashes
-├── backups/                    # Protective copies (manual)
-│   ├── firefox-auto-backup-*.jsonlz4
-│   └── firefox-pre-merge-*.json
-└── odd/tasks/                  # Development task documents
-    └── bookmarks-merge.md
+└── odd/                        # Development documents (local material, not versioned)
 ```
+
+`sources.md` and `odd/` are excluded from version control (they are local working material).
 
 ## Verified Format Details
 

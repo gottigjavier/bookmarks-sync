@@ -96,6 +96,7 @@ FF_ROOT_LABELS = {
 # entries must not be mistaken for bookmarks that exist "only in Firefox".
 FF_TAGS_ROOT = 4
 FF_ORPHAN_ROOT = 1
+FF_MENU_ROOT = 2
 
 # Firefox/Chromium root -> (firefox root pseudonym, firefox root guid, label, index in places root)
 FF_ROOT_TARGETS = (
@@ -747,10 +748,34 @@ def emit_chromium(chromium_meta, merged, target):
             "id": str(next(counter)),
             "name": meta["name"],
             "type": "folder",
-            "children": [_chromium_node(node, counter) for node in merged.get(root_key, [])],
+            "children": [_chromium_node(node, counter)
+                         for node in _chromium_children(root_key, merged)],
         }
     document = {"version": 1, "roots": roots}
     target.write_text(json.dumps(document, ensure_ascii=False, indent=3) + "\n", encoding="utf-8")
+
+
+def _chromium_children(root_key, merged):
+    """Children of a Chromium root, plus the projection of the roots Chromium lacks.
+
+    Chromium-family Bookmarks has exactly three roots (bookmark_bar, other, synced);
+    Firefox has a fourth one (menu). The merged tree carries it whenever Firefox is
+    the canonical browser, and the Chromium format has no place for it: dropping those
+    bookmarks would remove them from the Chromium artifact, so they are projected into
+    "other" under a folder named after the Firefox root. The verification gate
+    compares every artifact against the merged tree, so a projection that silently
+    lost bookmarks would fail the run instead of shipping a half-populated store.
+    """
+    children = list(merged.get(root_key, []))
+    if root_key == "other":
+        menu = merged.get("menu") or []
+        if menu:
+            label = FF_ROOT_LABELS[FF_MENU_ROOT]
+            added = min((c.added_us for c in menu if c.added_us), default=0)
+            holder = _folder(label, added, menu)
+            holder.key = f"menu-root/{label}"
+            children.append(holder)
+    return children
 
 
 def _chromium_node(node, counter):
@@ -775,7 +800,11 @@ def _chromium_node(node, counter):
 
 def emit_firefox(merged, target):
     counter = itertools.count(1)
-    children = [_ff_folder("menu", "menu________", "bookmarksMenuFolder", 0, [], counter)]
+    # The menu root is a real Firefox root (id 2) and the merged tree populates it,
+    # so it must be emitted with its children: hardcoding [] here silently dropped
+    # every bookmark filed under "Menú de marcadores".
+    children = [_ff_folder("menu", "menu________", "bookmarksMenuFolder", 0,
+                           merged.get("menu", []), counter)]
     for root_key, pseudo, guid, label, index in FF_ROOT_TARGETS:
         children.append(
             _ff_folder(label, guid, pseudo, index, merged.get(root_key, []), counter)
@@ -987,21 +1016,57 @@ def build_report(args, profiles, chromium_roots, ff_items, ff_stats, result, out
     add("")
 
     add("-- Verificacion " + "-" * 62)
+    # The artifacts are compared against the merged tree, never against each other:
+    # comparing them with each other cannot detect a loss that hits both of them.
+    merged_keys = set()
+    for children in result["merged"].values():
+        for node in _walk(children):
+            if node.kind == "url":
+                merged_keys.add(_norm_url(node.url))
     ok = True
     for label, path, inv in args._inventories:
         urls, folders = inv
         keys = [_norm_url(u) for u in urls]
-        dupes = len(keys) - len(set(keys))
-        status = "OK " if (len(urls) == args._expected_urls and dupes == 0) else "FALLA"
+        keyset = set(keys)
+        dupes = len(keys) - len(keyset)
+        missing = merged_keys - keyset
+        extra = keyset - merged_keys
+        status = "OK " if (not missing and not extra and dupes == 0) else "FALLA"
         if status == "FALLA":
             ok = False
-        add(f"  {status}  {label}: {len(urls)} bookmarks (esperado {args._expected_urls}), "
+        add(f"  {status}  {label}: {len(urls)} bookmarks (arbol merged: {len(merged_keys)}), "
             f"{len(folders)} carpetas, {dupes} duplicados")
-        missing = args._must_contain - set(keys)
         if missing:
+            if len(missing) == 1:
+                add("         FALTA 1 marcador del arbol merged")
+            else:
+                add(f"         FALTAN {len(missing)} marcadores del arbol merged")
+        if extra:
+            if len(extra) == 1:
+                add("         SOBRA 1 marcador que no esta en el arbol merged")
+            else:
+                add(f"         SOBRAN {len(extra)} marcadores que no estan en el arbol merged")
+        lost = args._must_contain - keyset
+        if lost:
             ok = False
-            add(f"         FALTAN {len(missing)} de los exclusivos de {display[noncanon]}")
-    add(f"  {'OK ' if ok else 'FALLA'}  los dos artefactos coinciden en cantidad")
+            if len(lost) == 1:
+                add(f"         FALTA 1 de los exclusivos de {display[noncanon]}")
+            else:
+                add(f"         FALTAN {len(lost)} de los exclusivos de {display[noncanon]}")
+    add(f"  {'OK ' if ok else 'FALLA'}  cada artefacto contiene exactamente los marcadores "
+        f"del arbol merged")
+    menu_count = sum(1 for node in _walk(result["merged"].get("menu") or []) if node.kind == "url")
+    # The note is only truthful when the gate passed: then the Chromium artifact holds
+    # exactly the merged URL set, and the only way its menu bookmarks got there is the
+    # projection into 'other' (the Chromium format has no menu root).
+    if ok and menu_count and any(member != "firefox" for member in pair):
+        root_label = FF_ROOT_LABELS[FF_MENU_ROOT]
+        if menu_count == 1:
+            add(f"  NOTA  el formato Chromium no tiene raiz '{root_label}': "
+                f"1 marcador del arbol fusionado se proyecto dentro de 'other'")
+        else:
+            add(f"  NOTA  el formato Chromium no tiene raiz '{root_label}': "
+                f"{menu_count} marcadores del arbol fusionado se proyectaron dentro de 'other'")
     add("")
 
     add("-- Siguiente paso " + "-" * 60)
@@ -1259,7 +1324,7 @@ def main(argv=None):
             emit_chromium(chromium_meta[meta_source], result["merged"], target)
         artifacts[member] = target
 
-    inventories, inv_by_member = [], {}
+    inventories = []
     for member in pair:
         if member == "firefox":
             urls, folders = inventory_firefox(artifacts[member])
@@ -1268,11 +1333,9 @@ def main(argv=None):
             urls, folders = inventory_chromium(artifacts[member])
             fmt = "chromium"
         label = f"{BROWSERS[member]['display']:<8} ({fmt})"
-        inv_by_member[member] = (urls, folders)
         inventories.append((label, artifacts[member], (urls, folders)))
 
     args._inventories = inventories
-    args._expected_urls = len(inv_by_member[meta_source][0])
     args._must_contain = {_norm_url(item["url"]) for item in result["placed"]}
 
     # Which chromium-family member would --apply auto-write? With a firefox partner
