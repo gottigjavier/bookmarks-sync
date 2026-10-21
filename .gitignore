@@ -1,2 +1,19 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Generated artifacts (contain user bookmarks - sensitive)
+out/
 snapshots/
+backups/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
