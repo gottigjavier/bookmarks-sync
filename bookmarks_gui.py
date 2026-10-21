@@ -913,7 +913,7 @@ class BookmarksGui:
         # Pair order mirrors the argv so the order here never surprises.
         members = [m.strip() for m in state["pair"].split(",") if m.strip()]
         canonical, only = state["canonical"], state["only"]
-        noncanon = [m for m in state["pair"] if m != canonical][0]
+        noncanon = [m for m in members if m != canonical][0]
         auto = ([m for m in members if m != "firefox"] if "firefox" in members
                 else [canonical])
         auto = [m for m in auto if only in ("both", m)]
