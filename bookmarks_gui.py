@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 gottigjavier
+#
+# Use of this software is govered by the Business Source License included
+# in the LICENSE file and at www.mariadb.com/bsl11.
+#
+# Change Date: 2030-10-21
+#
+# On the date above, in accordance with the Business Source License,
+# use of this software will be governed by the open source license specified
+# in the LICENSE file.
 """Tkinter GUI for bookmarks-merge.py.
 
 Integration model: subprocess. Never imports the CLI; builds the exact argv and

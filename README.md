@@ -1,8 +1,43 @@
 # IA-sync — Herramienta de Convergencia de Marcadores
 
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![Firefox](https://img.shields.io/badge/Firefox-FF7139FF?style=flat-square&logo=firefox&logoColor=white)
+![Brave](https://img.shields.io/badge/Brave-FA5A09?style=flat-square&logo=brave&logoColor=white)
+![Chromium](https://img.shields.io/badge/Chromium-4285F4?style=flat-square&logo=chromium&logoColor=white)
+![Linux](https://img.shields.io/badge/Plataforma-Linux-FCC624?style=flat-square&logo=linux&logoColor=white)
+![Licencia](https://img.shields.io/badge/Licencia-BUSL%201.1-8A2BE2?style=flat-square)
+![Versión](https://img.shields.io/badge/Versi%C3%B3n-2.0.0-007ec6?style=flat-square)
+
 Converge los marcadores de exactamente dos navegadores (Firefox, Brave y Chromium) en un único árbol deduplicado, con estructura de carpetas **Base** seleccionable y seguridad completa de snapshot/rollback.
 
 > Versión en inglés: [README-EN.md](README-EN.md)
+
+## Tabla de Contenidos
+
+- [Aviso](#aviso)
+- [Por qué](#por-qué)
+- [Características](#características)
+- [Requisitos](#requisitos)
+- [Inicio Rápido](#inicio-rápido)
+- [Uso](#uso)
+- [Interfaz Gráfica (GUI)](#interfaz-gráfica-gui)
+- [Cómo Funciona](#cómo-funciona)
+- [Artefactos de Salida](#artefactos-de-salida)
+- [Snapshots y Rollback](#snapshots-y-rollback)
+- [Características de Seguridad](#características-de-seguridad)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Detalles de Formato Verificados](#detalles-de-formato-verificados)
+- [Licencia](#licencia)
+
+---
+
+## Aviso
+
+IA-sync es un proyecto **no comercial**, de carácter personal: se distribuye sin fines de lucro, sin soporte dedicado y sin garantías de uso profesional. Se licencia bajo **BUSL 1.1** (`Additional Use Grant: None`): se permite copiar, modificar y redistribuir con **uso no productivo**; cualquier uso comercial requiere una licencia del titular. El `Change Date` es el **21 de octubre de 2030**, fecha en la que la obra pasa a gobernarse por la **GPL v3.0 o posterior**. Ver [Licencia](#licencia).
+
+Las **rutas de configuración dependen del sistema** en el que se ejecute la herramienta. Los valores por defecto asumen una instalación en Linux (`~/.mozilla/firefox`, `~/.config/BraveSoftware/Brave-Browser`, `~/.config/chromium`) y pueden no coincidir con tu instalación, tu usuario o tu distribución de escritorio. Antes de ejecutar `--apply`, configura explícitamente las rutas que correspondan mediante `--ff-profile`, `--brave-profile`, `--chromium-profile`, `--out` y `--snapshots` (o los campos equivalentes de la GUI) y contrasta las rutas resueltas en el reporte (`out/report.txt`).
+
+> Configurar estas rutas es responsabilidad del usuario: la herramienta no adivina ubicaciones fuera de los supuestos de sus valores por defecto y aborta si no puede resolver un perfil.
 
 ## Por qué
 
@@ -266,6 +301,7 @@ IA-sync/
 ├── bookmarks_gui.py            # Interfaz gráfica (tkinter, solo stdlib)
 ├── README.md                   # Este archivo (español)
 ├── README-EN.md                # English version
+├── LICENSE                     # BUSL 1.1 license
 ├── sources.md                  # Enlaces de referencia (mantenido por el usuario)
 ├── out/                        # Artefactos generados (según el par de la corrida)
 │   ├── brave-bookmarks.json    #   JSON Chromium para Brave (si brave está en el par)
@@ -303,4 +339,14 @@ Estos hechos fueron verificados contra el código fuente upstream, no asumidos:
 
 ## Licencia
 
-Proyecto personal. Sin archivo de licencia.
+[BUSL 1.1](LICENSE) — Business Source License 1.1. Copyright (c) 2026 gottigjavier.
+
+| Parámetro | Valor |
+|---|---|
+| Licensor | gottigjavier |
+| Licensed Work | IA-sync versión 2.0.0 y posteriores, (c) 2026 gottigjavier |
+| Additional Use Grant | `None` — sin uso productivo; el uso comercial requiere licencia del titular |
+| Change Date | 2030-10-21 (o el cuarto aniversario de la primera distribución pública, lo que ocurra antes) |
+| Change License | GPL v3.0 or later |
+
+Hasta el `Change Date`, BUSL 1.1 **no es una licencia de código abierto aprobada por la OSI**: el código está disponible, pero sin permiso de uso productivo. Desde esa fecha, la obra se rige por la GPL v3.0 o posterior.

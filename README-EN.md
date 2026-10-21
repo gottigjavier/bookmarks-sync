@@ -1,6 +1,43 @@
 # IA-sync — Bookmark Convergence Tool
 
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![Firefox](https://img.shields.io/badge/Firefox-FF7139FF?style=flat-square&logo=firefox&logoColor=white)
+![Brave](https://img.shields.io/badge/Brave-FA5A09?style=flat-square&logo=brave&logoColor=white)
+![Chromium](https://img.shields.io/badge/Chromium-4285F4?style=flat-square&logo=chromium&logoColor=white)
+![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=white)
+![License](https://img.shields.io/badge/License-BUSL%201.1-8A2BE2?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.0.0-007ec6?style=flat-square)
+
 Converges the bookmarks of exactly two browsers (Firefox, Brave and Chromium) into a single deduplicated tree, with a selectable **Base** layout and full snapshot/rollback safety.
+
+> Spanish version: [README.md](README.md)
+
+## Table of Contents
+
+- [Notice](#notice)
+- [Why](#why)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Graphical Interface (GUI)](#graphical-interface-gui)
+- [How It Works](#how-it-works)
+- [Output Artifacts](#output-artifacts)
+- [Snapshots and Rollback](#snapshots-and-rollback)
+- [Safety Features](#safety-features)
+- [Project Structure](#project-structure)
+- [Verified Format Details](#verified-format-details)
+- [License](#license)
+
+---
+
+## Notice
+
+IA-sync is a **non-commercial**, personal project: it is provided at no cost, without dedicated support, and without warranties for professional use. It is licensed under **BUSL 1.1** (`Additional Use Grant: None`): copying, modifying and redistributing with **non-production use** are allowed; any commercial use requires a license from the project owner. The `Change Date` is **October 21, 2030**, on which date the work becomes governed by the **GPL v3.0 or later**. See [License](#license).
+
+The **configuration paths depend on the system** the tool runs on. The default values assume a Linux installation (`~/.mozilla/firefox`, `~/.config/BraveSoftware/Brave-Browser`, `~/.config/chromium`) and may not match your installation, your user, or your desktop distribution. Before running `--apply`, set the relevant paths explicitly with `--ff-profile`, `--brave-profile`, `--chromium-profile`, `--out` and `--snapshots` (or the equivalent GUI fields), and check the resolved paths in the report (`out/report.txt`).
+
+> Configuring these paths is the user's responsibility: the tool does not guess locations outside the assumptions of its defaults and aborts when it cannot resolve a profile.
 
 ## Why
 
@@ -264,6 +301,7 @@ IA-sync/
 ├── bookmarks_gui.py            # GUI (tkinter, stdlib-only)
 ├── README.md                   # Spanish version
 ├── README-EN.md                # This file (English)
+├── LICENSE                     # BUSL 1.1 license
 ├── sources.md                  # Reference links (user-maintained)
 ├── out/                        # Generated artifacts (per the run's pair)
 │   ├── brave-bookmarks.json    #   Chromium JSON for Brave (if brave is in the pair)
@@ -301,4 +339,14 @@ These facts were verified against upstream source code, not assumed:
 
 ## License
 
-Personal project. No license file.
+[BUSL 1.1](LICENSE) — Business Source License 1.1. Copyright (c) 2026 gottigjavier.
+
+| Parameter | Value |
+|---|---|
+| Licensor | gottigjavier |
+| Licensed Work | IA-sync version 2.0.0 and later, (c) 2026 gottigjavier |
+| Additional Use Grant | `None` — no production use; commercial use requires a license from the project owner |
+| Change Date | 2030-10-21 (or the fourth anniversary of the first public distribution, whichever comes first) |
+| Change License | GPL v3.0 or later |
+
+Until the `Change Date`, BUSL 1.1 **is not an OSI-approved open source license**: the code is available, but production use is not permitted. From that date on, the work is governed by the GPL v3.0 or later.
