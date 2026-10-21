@@ -17,3 +17,7 @@ backups/
 # OS
 .DS_Store
 Thumbs.db
+
+# Development / local docs
+odd/
+sources.md
