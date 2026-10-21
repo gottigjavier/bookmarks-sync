@@ -33,7 +33,7 @@ def option_defaults():
 
     Used by the widget builders, by build_command's no-flag comparison and by
     the reset button, so those three can never drift apart. Keys mirror the
-    widget attribute suffixes (``<name>_var``) plus the two checkboxes.
+    widget attribute suffixes (``<name>_var``) plus the checkboxes.
     """
     return {
         "attach": DEFAULT_ATTACH_FOLDER,
@@ -42,6 +42,7 @@ def option_defaults():
         "max_examples": str(DEFAULT_MAX_EXAMPLES),
         "no_dedupe": False,
         "force": False,
+        "write_both": False,
     }
 
 # Single source of truth for every UI color. Neutral dark-grey ramp: the
@@ -226,6 +227,11 @@ def build_command(state):
         cmd += ["--force"]
     if state.get("apply"):
         cmd += ["--apply"]
+    # --write-both: only for chromium+chromium pairs, writes to both live stores.
+    if state.get("write_both"):
+        is_chromium_pair = all(m != "firefox" for m in members)
+        if is_chromium_pair:
+            cmd += ["--write-both"]
 
     # Profile overrides: only for pair members with a non-empty entry, using the
     # registry's own flag (--ff-profile / --brave-profile / --chromium-profile).
@@ -343,6 +349,23 @@ def self_test():
             "only": "chromium"})
     raises("miembros duplicados lanza ValueError",
            {**base, "pair": "firefox,firefox", "canonical": "firefox"})
+
+    # write_both flag: only emitted for chromium+chromium pairs.
+    expect("write_both emitido en par chromium+chromium",
+           build_command({**base, "pair": "brave,chromium", "canonical": "brave",
+                          "write_both": True}),
+           [sys.executable, str(SCRIPT), "--pair", "brave,chromium",
+            "--canonical", "brave", "--write-both"])
+    expect("write_both NO emitido en par con Firefox",
+           build_command({**base, "pair": "firefox,brave", "canonical": "brave",
+                          "write_both": True}),
+           [sys.executable, str(SCRIPT), "--pair", "firefox,brave",
+            "--canonical", "brave"])
+    expect("write_both NO emitido si False",
+           build_command({**base, "pair": "brave,chromium", "canonical": "brave",
+                          "write_both": False}),
+           [sys.executable, str(SCRIPT), "--pair", "brave,chromium",
+            "--canonical", "brave"])
 
     # Display layer (Spanish labels) must round-trip to CLI tokens: the state
     # that reaches build_command keeps tokens even though combos show labels.
@@ -695,12 +718,20 @@ class BookmarksGui:
                     width=6).grid(row=4, column=1, sticky="w", padx=4, pady=2)
         self.no_dedupe_var = tk.BooleanVar(value=opts["no_dedupe"])
         self.force_var = tk.BooleanVar(value=opts["force"])
+        self.write_both_var = tk.BooleanVar(value=opts.get("write_both", False))
         ttk.Checkbutton(options, text="Sin deduplicación (--no-dedupe)",
                         variable=self.no_dedupe_var).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=2)
         ttk.Checkbutton(options, text="Forzar (--force) — peligroso",
                         variable=self.force_var).grid(
             row=6, column=0, columnspan=2, sticky="w", pady=2)
+        # write_both: only for chromium+chromium pairs; created hidden, shown in _on_pair_change
+        self.write_both_cb = ttk.Checkbutton(
+            options,
+            text="Actualizar ambos navegadores Chromium en vivo (--write-both) — peligroso",
+            variable=self.write_both_var,
+        )
+        # Initially hidden; _on_pair_change will show/hide based on pair
 
         # Actions card: last one in the column, so it carries the bottom of the
         # vertical rhythm now that the log pane is gone.
@@ -777,6 +808,9 @@ class BookmarksGui:
             # Degraded registry (fetch failure): no widgets to populate.
             self.only_combo.configure(values=[ONLY_BOTH])
             self.only_var.set(ONLY_BOTH)
+            # Hide write_both checkbox (no pair selected)
+            if hasattr(self, "write_both_cb"):
+                self.write_both_cb.grid_remove()
             return
         members = self._pair_members()  # display labels
         # Base: only the two pair members (values are display labels too).
@@ -799,6 +833,15 @@ class BookmarksGui:
             active = name in member_tokens
             row["entry"].configure(state="normal" if active else "disabled")
             row["browse"].configure(state="normal" if active else "disabled")
+        # write_both checkbox: only visible for chromium+chromium pairs
+        if hasattr(self, "write_both_cb"):
+            pair_tokens = [token_for(self.browsers, m) for m in members]
+            is_chromium_pair = all(t != "firefox" for t in pair_tokens)
+            if is_chromium_pair:
+                # Place it after the force checkbox (row 7)
+                self.write_both_cb.grid(row=7, column=0, columnspan=2, sticky="w", pady=2)
+            else:
+                self.write_both_cb.grid_remove()
         self._set_status(f"🔀 Par activo: {members[0]},{members[1]} — "
                          f"canónico: {self._display(self.canonical_var.get())}")
 
@@ -846,6 +889,7 @@ class BookmarksGui:
             "max_examples": max_examples,
             "no_dedupe": self.no_dedupe_var.get(),
             "force": self.force_var.get(),
+            "write_both": self.write_both_var.get(),
             "apply": False,
             "profiles": {name: row["entry"].get()
                          for name, row in self.profile_rows.items()},
@@ -877,6 +921,7 @@ class BookmarksGui:
             "max_examples": self.max_examples_var,
             "no_dedupe": self.no_dedupe_var,
             "force": self.force_var,
+            "write_both": self.write_both_var,
         }
 
     def reset_to_defaults(self):
@@ -914,8 +959,15 @@ class BookmarksGui:
         members = [m.strip() for m in state["pair"].split(",") if m.strip()]
         canonical, only = state["canonical"], state["only"]
         noncanon = [m for m in members if m != canonical][0]
+        # Base auto-write logic: firefox pair -> all chromium members;
+        # chromium+chromium -> only canonical UNLESS write_both=True.
         auto = ([m for m in members if m != "firefox"] if "firefox" in members
                 else [canonical])
+        write_both = state.get("write_both", False)
+        if write_both and "firefox" not in members:
+            # Both are chromium-family: add the non-canonical member too.
+            noncanon_member = [m for m in members if m != canonical][0]
+            auto.append(noncanon_member)
         auto = [m for m in auto if only in ("both", m)]
         out = Path(state["out"] or DEFAULT_OUT).expanduser()
 
@@ -953,10 +1005,18 @@ class BookmarksGui:
                         f"fusionada (sobrescribe su archivo Bookmarks)."
                     )
                 else:
-                    lines.append(
-                        f"  {self._display(m)}: se ACTUALIZA EN VIVO con la estructura fusionada "
-                        f"(Base = {self._display(canonical)}). Sobrescribe su archivo Bookmarks."
-                    )
+                    # Non-canonical chromium member being auto-written
+                    if write_both and "firefox" not in members:
+                        lines.append(
+                            f"  {self._display(m)}: se ACTUALIZA EN VIVO con la estructura fusionada "
+                            f"(Base = {self._display(canonical)}). Sobrescribe su archivo Bookmarks "
+                            f"— activado por --write-both."
+                        )
+                    else:
+                        lines.append(
+                            f"  {self._display(m)}: se ACTUALIZA EN VIVO con la estructura fusionada "
+                            f"(Base = {self._display(canonical)}). Sobrescribe su archivo Bookmarks."
+                        )
             elif only in ("both", m):
                 lines.append(
                     f"  {self._display(m)}: NO se actualiza automáticamente — "

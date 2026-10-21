@@ -1092,6 +1092,10 @@ def main(argv=None):
     parser.add_argument("--max-examples", type=int, default=15,
                         help="cuantas entradas de ejemplo mostrar en el reporte")
     parser.add_argument("--no-dedupe", action="store_true", help="desactiva el dedupe (debug)")
+    parser.add_argument("--write-both", action="store_true",
+                        help="con par Chromium+Chromium: escribe EN VIVO en AMBOS navegadores "
+                             "(default: solo el base; requiere --apply). Peligroso: dos almacenes "
+                             "vivos simultaneos pueden corromperse si los browsers estan abiertos.")
     parser.add_argument("--list-browsers", action="store_true",
                         help="imprime en JSON los navegadores, pares y rutas por defecto "
                              "que conoce la herramienta (consumido por la GUI) y sale")
@@ -1263,11 +1267,15 @@ def main(argv=None):
 
     # Which chromium-family member would --apply auto-write? With a firefox partner
     # the (single) chromium-family member is written directly; with a chromium-family
-    # partner only the canonical member is auto-written (never two live stores at once).
+    # partner only the canonical member is auto-written UNLESS --write-both is given.
     if "firefox" in pair:
         auto_targets = {m for m in pair if m != "firefox"}
     else:
         auto_targets = {args.canonical}
+        if args.write_both:
+            # Both are chromium-family: add the non-canonical member too.
+            noncanon = [m for m in pair if m != args.canonical][0]
+            auto_targets.add(noncanon)
     args._auto_targets = {m for m in auto_targets if args.only in ("both", m)}
 
     report, ok = build_report(

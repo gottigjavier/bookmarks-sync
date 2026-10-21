@@ -2,36 +2,36 @@
 ==============================================================================
   bookmarks-merge  -  reporte
 ==============================================================================
-  Firefox  : /home/javier/.mozilla/firefox/14yqiklo.default-release
   Brave    : /home/javier/.config/BraveSoftware/Brave-Browser/Default
-  Par     : firefox,brave
+  Chromium : /home/javier/.config/chromium/Default
+  Par     : brave,chromium
   Base: brave
   Modo    : DRY-RUN (no se toca ningun browser)
 
 -- Estado de origen ---------------------------------------------------------
-  Firefox :  1549 bookmarks,  390 carpetas, 0 separadores
   Brave    :  1549 bookmarks,  384 carpetas
+  Chromium :  1548 bookmarks,  384 carpetas
 
 -- Duplicados eliminados -----------------------------------------------------
   Dentro de Brave     :     0
-  Firefox (ya estaban en Brave):  1549
-     - [ff] bookmark_bar/Google  ->  https://www.google.com.ar/
-     - [ff] bookmark_bar/Facebook  ->  https://www.facebook.com/
-     - [ff] bookmark_bar/YouTube  ->  https://youtube.com/
-     - [ff] bookmark_bar/AccuWeather  ->  https://www.accuweather.com/es/ar/parana/3634/hourly-weather-forecast/
-     - [ff] bookmark_bar/Windguru   ->  https://www.windguru.cz/356415
-     - [ff] bookmark_bar/Cuevana 3  ->  https://cuevana.you/
-     - [ff] bookmark_bar/‎Gemini  ->  https://gemini.google.com/?gad_source=1
-     - [ff] bookmark_bar/Poolside Chat  ->  https://chat.poolside.ai/
-     - [ff] bookmark_bar/GPT  ->  https://chatgpt.com/
-     - [ff] bookmark_bar/Genspark  ->  https://www.genspark.ai/es
-     - [ff] bookmark_bar/Claude  ->  https://claude.ai/login
-     - [ff] bookmark_bar/Swift  ->  https://swift-ai.vercel.app/
-     - [ff] bookmark_bar/Morphic  ->  https://www.morphic.sh/
-     - [ff] bookmark_bar/Perplexity  ->  https://www.perplexity.ai/
-     - [ff] bookmark_bar/Cuevana 3  ->  https://www.cuevana.is/
+  Chromium (ya estaban en Brave):  1548
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://web.whatsapp.com/
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://x.com/
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://www.linkedin.com/login/es
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://app.daily.dev/onboarding?stepId=signup
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://www.instagram.com/
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://kick.com/
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://discord.com/login
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://mastodon.social/auth/sign_up
+     - [ch] bookmark_bar/Favoritos/Logins/Redes  ->  https://restream.io/login
+     - [ch] bookmark_bar/Favoritos/Logins/Educacion  ->  https://skillsforall.com/es/
+     - [ch] bookmark_bar/Favoritos/Logins/Educacion  ->  https://portswigger.net/web-security
+     - [ch] bookmark_bar/Favoritos/Logins/Educacion  ->  https://campus.cui.edu.ar/login/index.php
+     - [ch] bookmark_bar/Favoritos/Logins/Educacion  ->  https://sso.teachable.com/secure/1706457/identity/login/password
+     - [ch] bookmark_bar/Favoritos/Logins/Educacion  ->  https://argentinaprograma4.teachable.com/
+     - [ch] bookmark_bar/Favoritos/Logins/Educacion  ->  https://constana.io/sign-in
 
--- Exclusivos de Firefox (preservados) ---------------------------------------
+-- Exclusivos de Chromium (preservados) --------------------------------------
   Total reubicado : 0
 
 -- Resultado -----------------------------------------------------------------
@@ -39,8 +39,8 @@
   Carpetas finales : 384
 
 -- Verificacion --------------------------------------------------------------
-  OK   Firefox  (legacy json): 1549 bookmarks (esperado 1549), 388 carpetas, 0 duplicados
   OK   Brave    (chromium): 1549 bookmarks (esperado 1549), 384 carpetas, 0 duplicados
+  OK   Chromium (chromium): 1549 bookmarks (esperado 1549), 384 carpetas, 0 duplicados
   OK   los dos artefactos coinciden en cantidad
 
 -- Siguiente paso ------------------------------------------------------------
