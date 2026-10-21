@@ -927,17 +927,16 @@ class BookmarksGui:
         ]
         if "firefox" in members and only in ("both", "firefox"):
             # Firefox NUNCA se escribe en vivo — esta línea DEBE leerse.
-            # Primera línea = header (color emoji), resto = cuerpo monoespaciado.
+            # Primera línea = header (color emoji), resto = cuerpo limpio.
             lines = [
                 "⚠️  FIREFOX: RESTORE MANUAL OBLIGATORIO  ⚠️",
                 "",
-                "┌" + "─" * 70 + "┐",
-                f"│  Archivo: firefox-restore.json  (carpeta: {out.name:<36}│",
-                "│                                                               │",
-                "│  Pasos: Biblioteca (Ctrl+Shift+O) → ⚙ Importar y          │",
-                "│  respaldar → Importar datos → Desde archivo →             │",
-                "│  seleccionar el JSON de arriba.                             │",
-                "└" + "─" * 70 + "┘",
+                f"Archivo: firefox-restore.json  (carpeta: {out.name})",
+                "",
+                "Pasos:",
+                "  Biblioteca (Ctrl+Shift+O) → ⚙ Importar y respaldar",
+                "  → Importar datos → Desde archivo",
+                "  → seleccionar el JSON de arriba.",
                 "",
                 "Se ejecutará --apply con estos parámetros:",
                 f"Par: {members[0]},{members[1]}   Canónico: "
@@ -990,14 +989,10 @@ class BookmarksGui:
         if not snapshot:
             self._set_status("↩️ Restauración cancelada.")
             return
-        summary = (
-            "⚠️  RESTAURAR SNAPSHOT - SOBRESCRIBE DATOS  ⚠️\n"
-            "\n"
-            f"Snapshot: {snapshot}\n"
-            f"Perfiles: {state['pair']} (canónico: {state['canonical']})\n"
-            "\n"
-            "Los archivos actuales se sobrescriben. ¿Continuar?"
-        )
+        summary = (f"Se restaurará el snapshot:\n{snapshot}\n"
+                   f"sobre los perfiles de {state['pair']} "
+                   f"(canónico: {state['canonical']}).\n"
+                   "Los archivos actuales se sobrescriben. ¿Continuar?")
         try:
             cmd = build_command(state) + ["--restore", snapshot]
         except ValueError as exc:
