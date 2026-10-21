@@ -1,6 +1,6 @@
 # IA-sync — Bookmark Convergence Tool
 
-Converges the bookmarks of exactly two browsers (Firefox, Brave and Chromium) into a single deduplicated tree, with a selectable canonical layout and full snapshot/rollback safety.
+Converges the bookmarks of exactly two browsers (Firefox, Brave and Chromium) into a single deduplicated tree, with a selectable **Base** layout and full snapshot/rollback safety.
 
 ## Why
 
@@ -9,16 +9,18 @@ Browsers store bookmarks in incompatible formats and diverge over time. Firefox 
 ## Features
 
 - **Pair-based sync**: exactly two browsers per run, chosen with `--pair`: `firefox,brave`, `firefox,chromium` or `brave,chromium` (order-insensitive).
-- **Explicit, mandatory canonical**: `--canonical` (no default) picks whose folder layout is the skeleton, and must be one of the pair's members. There is no implicit canonical browser.
+- **Explicit, mandatory Base**: `--canonical` (no default) picks whose folder layout is the skeleton (**Base**), and must be one of the pair's members. There is no implicit Base browser.
 - **Union merge**: bookmarks from both pair members are preserved; only true duplicates are removed.
-- **Smart dedupe**: keeps the shallowest occurrence of each URL (a bookmark-bar shortcut beats a copy buried three folders deep). Ties break by DFS order; the canonical root is scanned first.
-- **Exclusives preserved under `Desde <other browser>`**: the exact path depends on whether the canonical is Chromium-family or Firefox (see *Canonical modes and anchoring*).
+- **Smart dedupe**: keeps the shallowest occurrence of each URL (a bookmark-bar shortcut beats a copy buried three folders deep). Ties break by DFS order; the Base root is scanned first.
+- **Exclusives preserved under `Desde <other browser>`**: the exact path depends on whether the Base is Chromium-family or Firefox (see *Base modes and anchoring*).
 - **Deterministic**: same inputs → same outputs. Running twice produces identical artifacts.
 - **Snapshot on every `--apply`**: automatic backup of both pair members before any write.
 - **Safety guards**: refuses to `--apply` while a pair member is running (Chromium rewrites its file on close). `--force` overrides.
 - **`--restore`**: one-command rollback from any snapshot; compatible with v1.x snapshots.
 - **`--only`**: restricts `--apply` to one pair member, leaving the other untouched.
+- **`--write-both`** *(Chromium+Chromium pairs)*: writes LIVE to **both** browsers (default: only the Base). Dangerous if browsers are open.
 - **Configurable profiles**: `--ff-profile`, `--brave-profile` and `--chromium-profile`; only the pair members' profiles are resolved.
+- **Graphical Interface (GUI)**: `bookmarks_gui.py` — tkinter, stdlib only, dark theme, emojis, explanatory confirmation dialog, checkbox "Update both Chromium browsers live" for Chromium+Chromium pairs.
 - **Zero dependencies**: Python 3 standard library only. No pip installs.
 
 ## Requirements
@@ -48,7 +50,7 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical brave --apply
 python3 bookmarks-merge.py --pair A,B --canonical X [OPTIONS]
 ```
 
-`--pair` and `--canonical` are both required: without them the script exits with an error (there is no default canonical). Running without `--apply` is always safe: it only reads, writes previews to `out/`, and prints a report.
+`--pair` and `--canonical` are both required: without them the script exits with an error (there is no default Base). Running without `--apply` is always safe: it only reads, writes previews to `out/`, and prints a report.
 
 ### Valid pairs
 
@@ -63,15 +65,16 @@ python3 bookmarks-merge.py --pair A,B --canonical X [OPTIONS]
 | Option | Default | Description |
 |---|---|---|
 | `--pair A,B` | — (required) | Pair of browsers to sync, comma-separated and order-insensitive. See valid pairs. |
-| `--canonical NAME` | — (required) | Browser whose folder tree is the skeleton; must be a member of `--pair`. No default. |
+| `--canonical NAME` | — (required) | Browser whose folder tree is the skeleton (**Base**); must be a member of `--pair`. No default. |
 | `--apply` | off | Write changes to browsers. Without it: dry-run only. |
 | `--only NAME` | `both` | Restrict `--apply` to one pair member: `both` or a member's name. |
+| `--write-both` | off | **Chromium+Chromium pairs only**: write LIVE to BOTH browsers (default: only the Base; requires `--apply`). Dangerous: two live stores can corrupt if browsers are open. |
 | `--force` | off | Override the open-browser guard. Dangerous. |
 | `--restore SNAPSHOT_DIR` | — | Restore the pair's files from a snapshot and exit. Also requires `--pair` and `--canonical`. |
 | `--ff-profile PATH` | auto | Explicit Firefox profile path (default: the active profile from `profiles.ini`). |
 | `--brave-profile PATH` | auto | Explicit Brave profile path (default: `~/.config/BraveSoftware/Brave-Browser/Default`). |
 | `--chromium-profile PATH` | auto | Explicit Chromium profile path (default: `~/.config/chromium/Default`). |
-| `--attach-folder NAME` | `Favoritos` | Folder in `bookmark_bar` where `Desde <other>` is hung. Only used when the canonical is Chromium-family; ignored with `--canonical firefox`. |
+| `--attach-folder NAME` | `Favoritos` | Folder in `bookmark_bar` where `Desde <other>` is hung. Only used when the Base is Chromium-family; ignored with `--canonical firefox`. |
 | `--out DIR` / `--out-dir DIR` | `out/` | Output directory for artifacts and reports. |
 | `--snapshots DIR` | `./snapshots` | Directory for automatic snapshots. |
 | `--max-examples N` | `15` | How many duplicate examples to show in the report. |
@@ -83,14 +86,17 @@ Only the pair members' profiles are resolved: a `brave,chromium` run never touch
 ### Examples
 
 ```bash
-# Firefox↔Brave with Brave's structure as the skeleton
+# Firefox↔Brave with Brave's structure as the Base
 python3 bookmarks-merge.py --pair firefox,brave --canonical brave
 
-# Firefox↔Chromium with Firefox canonical (--attach-folder is ignored in this mode)
+# Firefox↔Chromium with Firefox as Base (--attach-folder is ignored in this mode)
 python3 bookmarks-merge.py --pair firefox,chromium --canonical firefox
 
-# Brave↔Chromium: on --apply only the canonical's store is written
+# Brave↔Chromium: on --apply only the Base's store is written
 python3 bookmarks-merge.py --pair brave,chromium --canonical chromium
+
+# Brave↔Chromium: write to BOTH live stores (requires --apply, close browsers first!)
+python3 bookmarks-merge.py --pair brave,chromium --canonical brave --write-both --apply
 
 # Apply to a single pair member (the other one is left untouched)
 python3 bookmarks-merge.py --pair firefox,brave --canonical brave --apply --only brave
@@ -115,20 +121,27 @@ python3 bookmarks_gui.py              # open the window
 python3 bookmarks_gui.py --self-test  # test the pure logic, no display needed
 ```
 
-- **🔀 Sync**: A/B pair (they cannot be the same), canonical restricted to the two members, and `--only`.
+- **🔀 Sync**: A/B pair (they cannot be the same), Base restricted to the two members, and `--only`.
 - **👤 Profiles**: one row per registry browser; only the pair's members are enabled (the rest are disabled), and the field shows the default profile in gray until edited (if it matches the default, no flag is sent). "📂 Browse…" warns if `places.sqlite` (Firefox) or `Bookmarks` (Chromium) is missing, but keeps the chosen path.
-- **⚙ Options**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe`, and `--force`.
-- **⚡ Actions**: preview (read-only), `--apply` and `--restore` with a confirmation dialog summarizing the pair, the canonical, and which store is written automatically vs. manually, direct access to `out/` and `report.txt`, and "↺ Valores por defecto" to return every field and selection to its startup state. At the end of the row, "✖ Cerrar" exits through the same safe path as the window button.
+- **⚙ Options**: `--attach-folder`, `--out`, `--snapshots`, `--max-examples`, `--no-dedupe`, `--force`, and **`--write-both`** (checkbox "Update both Chromium browsers live — dangerous", only visible for Chromium+Chromium pairs, off by default).
+- **⚡ Actions**: preview (read-only), `--apply` and `--restore` with an **explanatory confirmation dialog** showing:
+  - **BASE STRUCTURE**: which browser provides the folder hierarchy
+  - **WHAT HAPPENS TO EACH BROWSER**: explicit per-browser action (auto-write with Base context, Firefox manual restore, manual copy, or excluded by `--only`)
+  - Prominent Firefox warning (manual restore required)
+  - Direct access to `out/` and `report.txt`
+  - "↺ Valores por defecto" to return every field and selection to its startup state
+  - At the end of the row, "✖ Cerrar" exits through the same safe path as the window button
+- **Checkbox `--write-both`**: only appears when the selected pair is Chromium+Chromium (Brave+Chromium). Off by default. When checked, the confirmation dialog notes "enabled by --write-both" for the non-Base member.
 
-The GUI shows no log panel: the CLI writes the full detail to `out/report.txt` (reachable via "🧾 Abrir report.txt"). Progress is tracked in the bottom status bar — "⏳ Proceso en curso…" with the command, then "✅ Proceso finalizado (código N)." on exit — and a non-zero exit opens a dialog with the code and the report path. Action buttons are disabled while a process is running (the close button stays enabled); closing the window with an active run asks for confirmation and terminates the subprocess.
+The GUI shows no log panel: the CLI writes the full detail to `out/report.txt` (reachable via "🧾 Abrir report.txt"). Progress is tracked in the bottom status bar — "⏳ Proceso en curso…" with the compacted command, then "✅ Proceso finalizado (código N)." on exit — and a non-zero exit opens a dialog with the code and the report path. Action buttons are disabled while a process runs (the close button stays enabled); closing the window with an active run asks for confirmation and terminates the subprocess.
 
 ## How It Works
 
 ### Merge model
 
 1. **Read** both pair members: Firefox from a copy of `places.sqlite` (WAL replayed on the copy, never the original); Brave and Chromium from their `Bookmarks` JSON.
-2. **Build skeleton** from the canonical browser's folder tree.
-3. **Dedupe** within the skeleton: for each normalized URL, keep the occurrence closest to a root (shallowest depth wins; ties go to DFS order, canonical root scanned first).
+2. **Build skeleton** from the Base browser's folder tree.
+3. **Dedupe** within the skeleton: for each normalized URL, keep the occurrence closest to a root (shallowest depth wins; ties go to DFS order, Base root scanned first).
 4. **Place exclusive bookmarks** from the other member under `Desde <other>`, preserving their original subfolder hierarchy.
 5. **Emit one artifact per pair member** in native format:
    - `out/firefox-restore.json` — only when `firefox` is in the pair. Firefox legacy JSON (manual restore via Library → Import and Backup → Restore → Choose File…)
@@ -150,17 +163,17 @@ Examples: `https://www.example.com/path/` and `https://example.com/path` are dup
 
 | Firefox root | Chromium root (Brave and Chromium) | Notes |
 |---|---|---|
-| `toolbar` (Barra de marcadores) | `bookmark_bar` | Bookmarks bar |
-| `unfiled` (Otros marcadores) | `other` | Other bookmarks |
-| `mobile` (Marcadores móviles) | `synced` | Mobile bookmarks |
-| `menu` (Menú de marcadores) | `menu` | Extra root; Chromium ignores it |
-| `tags` (Etiquetas) | — | Skipped; tag entries are artifacts, not bookmarks |
+| `toolbar` (Bookmarks bar) | `bookmark_bar` | Bookmarks bar |
+| `unfiled` (Other bookmarks) | `other` | Other bookmarks |
+| `mobile` (Mobile bookmarks) | `synced` | Mobile bookmarks |
+| `menu` (Bookmarks menu) | `menu` | Extra root; Chromium ignores it |
+| `tags` (Tags) | — | Skipped; tag entries are artifacts, not bookmarks |
 
-### Canonical modes and anchoring
+### Base modes and anchoring
 
 Both modes produce the **same union** of bookmarks; only the folder organization differs. The report shows the exact anchor in the `Destino` line.
 
-**Chromium-family canonical** (`--canonical brave` or `--canonical chromium`): the canonical's tree is the skeleton. The other browser's exclusive bookmarks hang under `bookmark_bar / <attach-folder> / Desde <other> / <root label> / <original path>`. If `<attach-folder>` is missing from the bar, the bar's children are wrapped in a `Bookmarks bar` folder and the anchor hangs inside it.
+**Chromium-family Base** (`--canonical brave` or `--canonical chromium`): the Base's tree is the skeleton. The other browser's exclusive bookmarks hang under `bookmark_bar / <attach-folder> / Desde <other> / <root label> / <original path>`. If `<attach-folder>` is missing from the bar, the bar's children are wrapped in a `Bookmarks bar` folder and the anchor hangs inside it.
 
 **`--canonical firefox`**: Firefox's tree is the skeleton. The other browser's exclusive bookmarks hang in a `Desde <other>` folder at the top of each root, preserving the original path underneath. `--attach-folder` is accepted but never used.
 
@@ -181,9 +194,11 @@ After a dry-run or `--apply`, the `out/` directory contains one artifact per pai
 |---|---|---|
 | `firefox,brave` | Brave | Firefox restore (`firefox-restore.json`) |
 | `firefox,chromium` | Chromium | Firefox restore (`firefox-restore.json`) |
-| `brave,chromium` | Only the canonical's store | Manual copy of the non-canonical member's artifact (the report prints source and destination) |
+| `brave,chromium` | Only the Base's store | Manual copy of the non-Base member's artifact (the report prints source and destination) |
 
-Two live stores are never written in a single run. `--only` restricts the above to one pair member.
+**With `--write-both` (Chromium+Chromium pairs):** **both** live stores are written (the Base and the non-Base). Requires `--apply` and **both** browsers closed (or `--force`).
+
+Two live stores are never written in a single run without `--write-both`. `--only` restricts the above to one pair member.
 
 ### Applying to Firefox (manual)
 
@@ -199,9 +214,11 @@ When `firefox` is in the pair, its store is never touched automatically: Firefox
 
 ### Applying to the Chromium-family store (automatic)
 
-When the Chromium-family member is the automatic target (the only Chromium member of a `firefox,*` pair, or the canonical in `brave,chromium`), `--apply` writes directly to its `Bookmarks` file, preserving the file's existing permissions (typically `0600`). That browser must be closed first — Chromium rewrites its file on exit and would overwrite the change.
+When the Chromium-family member is the automatic target (the only Chromium member of a `firefox,*` pair, or the Base in `brave,chromium`), `--apply` writes directly to its `Bookmarks` file, preserving the file's existing permissions (typically `0600`). That browser must be closed first — Chromium rewrites its file on exit and would overwrite the change.
 
-In `brave,chromium` pairs the non-canonical member is not written: the report prints the manual copy instruction (`out/<browser>-bookmarks.json` over the profile's `Bookmarks` file).
+In `brave,chromium` pairs the non-Base member is not written: the report prints the manual copy instruction (`out/<browser>-bookmarks.json` over the profile's `Bookmarks` file).
+
+**With `--write-both`**: both Chromium stores are overwritten. The report shows both "file replaced" lines.
 
 ## Snapshots and Rollback
 
@@ -232,7 +249,7 @@ Browsers must be closed before restoring (or use `--force`).
 |---|---|
 | Open-browser check | `--apply` refuses if a pair member (Firefox, Brave or Chromium) is running. Other browsers only trigger a read-only analysis warning. `--force` overrides the guard. |
 | Pre-apply snapshot | Before writing anything, every `--apply` snapshots both pair members. |
-| One live store per run | In `brave,chromium` pairs only the canonical's store is written; the rest is manual. |
+| One live store per run | In `brave,chromium` pairs only the Base's store is written; the rest is manual. With `--write-both` both are written (requires both closed). |
 | Permission preservation | The Chromium-family `Bookmarks` file keeps its existing permissions (fallback: `0600`). |
 | SQLite copy-on-read | `places.sqlite` is never opened in place; a copy is made and the WAL is replayed on the copy. |
 | Deterministic GUIDs | Derived with `uuid5` from a stable namespace, so re-running produces identical artifacts. |
@@ -244,6 +261,7 @@ Browsers must be closed before restoring (or use `--force`).
 ```
 IA-sync/
 ├── bookmarks-merge.py          # Main script (v2.0.0, stdlib-only)
+├── bookmarks_gui.py            # GUI (tkinter, stdlib-only)
 ├── README.md                   # Spanish version
 ├── README-EN.md                # This file (English)
 ├── sources.md                  # Reference links (user-maintained)

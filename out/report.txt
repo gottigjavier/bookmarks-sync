@@ -6,7 +6,7 @@
   Chromium : /home/javier/.config/chromium/Default
   Par     : brave,chromium
   Base: brave
-  Modo    : DRY-RUN (no se toca ningun browser)
+  Modo    : APPLY
 
 -- Estado de origen ---------------------------------------------------------
   Brave    :  1549 bookmarks,  384 carpetas
@@ -44,5 +44,5 @@
   OK   los dos artefactos coinciden en cantidad
 
 -- Siguiente paso ------------------------------------------------------------
-  Nada fue modificado. Cuando revises este reporte y los archivos de out/,
-  autorizá la aplicacion con:  --apply
+  Brave    : archivo reemplazado. Abrilo y revisa la barra de marcadores.
+  Chromium : archivo reemplazado. Abrilo y revisa la barra de marcadores.
