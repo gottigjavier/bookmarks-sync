@@ -1009,7 +1009,7 @@ def build_report(args, profiles, chromium_roots, ff_items, ff_stats, result, out
             elif member in args._auto_targets:
                 add(f"  {display[member]:<9}: archivo reemplazado. Abrilo y revisa la barra de marcadores.")
             else:
-                add(f"  {display[member]:<9}: copia manual (miembro no canonico):")
+                add(f"  {display[member]:<9}: NO se actualiza automáticamente — copiá manualmente:")
                 add(f"            {out_dir / (member + '-bookmarks.json')}")
                 add(f"            sobre {profiles[member] / 'Bookmarks'}")
     else:
@@ -1298,7 +1298,7 @@ def main(argv=None):
             replace_keeping_mode(artifacts[member], live[member])
             print(f"{BROWSERS[member]['display']} actualizado: {live[member]}")
         else:
-            print(f"{BROWSERS[member]['display']}: copia manual (miembro no canonico): "
+            print(f"{BROWSERS[member]['display']}: NO se actualiza automáticamente — copiá manualmente: "
                   f"{artifacts[member]} -> {live[member]}")
     print(f"hashes previos: {before}")
     if running:

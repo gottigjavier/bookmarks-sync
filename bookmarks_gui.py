@@ -947,8 +947,12 @@ class BookmarksGui:
             ]
         for m in members:
             if m != "firefox" and m not in auto and only in ("both", m):
-                lines.append(f"{self._display(m)}: copia manual del artefacto "
-                             "sobre su almacén (miembro no canónico)")
+                # Non-canonical chromium member: artifact is generated but NOT
+                # written to the live store. User must copy it manually.
+                lines.append(
+                    f"{self._display(m)}: NO se actualiza automáticamente — "
+                    f"copiá manualmente out/{m}-bookmarks.json a su almacén"
+                )
         lines += ["", "Se tomará un snapshot antes de escribir.",
                   f"El detalle completo queda en {out / 'report.txt'}.", "¿Continuar?"]
         return "\n".join(lines)
