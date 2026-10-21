@@ -913,18 +913,67 @@ class BookmarksGui:
         # Pair order mirrors the argv so the order here never surprises.
         members = [m.strip() for m in state["pair"].split(",") if m.strip()]
         canonical, only = state["canonical"], state["only"]
+        noncanon = [m for m in state["pair"] if m != canonical][0]
         auto = ([m for m in members if m != "firefox"] if "firefox" in members
                 else [canonical])
         auto = [m for m in auto if only in ("both", m)]
         out = Path(state["out"] or DEFAULT_OUT).expanduser()
+
+        # Build explanation lines
         lines = [
-            "Se ejecutará --apply con estos parámetros:",
-            f"Par: {members[0]},{members[1]}   Base: "
-            f"{self._display(canonical)}   --only: {only}",
+            "ESTRUCTURA BASE:",
+            f"  La jerarquía de carpetas se toma de {self._display(canonical)} (Base).",
+            f"  Los marcadores de {self._display(noncanon)} se fusionan dentro de esa estructura.",
             "",
-            "Escritura automática: "
-            + (", ".join(self._display(m) for m in auto) or "ninguna"),
+            "QUÉ PASA CON CADA NAVEGADOR:",
         ]
+
+        # Firefox is special: never auto-written
+        if "firefox" in members:
+            if canonical == "firefox":
+                lines.append(
+                    f"  Firefox (Base): se genera firefox-restore.json con la estructura "
+                    f"fusionada. NO se aplica en vivo — debés restaurarlo a mano."
+                )
+            else:
+                lines.append(
+                    f"  Firefox: se genera firefox-restore.json con la estructura fusionada "
+                    f"(Base = {self._display(canonical)}). NO se aplica en vivo — "
+                    f"debés restaurarlo a mano."
+                )
+
+        # Chromium-family members
+        for m in members:
+            if m == "firefox":
+                continue
+            if m in auto:
+                if m == canonical:
+                    lines.append(
+                        f"  {self._display(m)} (Base): se ACTUALIZA EN VIVO con la estructura "
+                        f"fusionada (sobrescribe su archivo Bookmarks)."
+                    )
+                else:
+                    lines.append(
+                        f"  {self._display(m)}: se ACTUALIZA EN VIVO con la estructura fusionada "
+                        f"(Base = {self._display(canonical)}). Sobrescribe su archivo Bookmarks."
+                    )
+            elif only in ("both", m):
+                lines.append(
+                    f"  {self._display(m)}: NO se actualiza automáticamente — "
+                    f"copiá manualmente out/{m}-bookmarks.json a su almacén."
+                )
+            else:
+                lines.append(
+                    f"  {self._display(m)}: excluido por --only={only}."
+                )
+
+        lines += [
+            "",
+            "Se tomará un snapshot antes de escribir.",
+            f"El detalle completo queda en {out / 'report.txt'}.",
+            "¿Continuar?",
+        ]
+
         if "firefox" in members and only in ("both", "firefox"):
             # Firefox NUNCA se escribe en vivo — esta línea DEBE leerse.
             # Primera línea = header (color emoji), resto = cuerpo limpio.
@@ -938,23 +987,8 @@ class BookmarksGui:
                 "  → Importar datos → Desde archivo",
                 "  → seleccionar el JSON de arriba.",
                 "",
-                "Se ejecutará --apply con estos parámetros:",
-                f"Par: {members[0]},{members[1]}   Base: "
-                f"{self._display(canonical)}   --only: {only}",
-                "",
-                "Escritura automática: "
-                + (", ".join(self._display(m) for m in auto) or "ninguna"),
-            ]
-        for m in members:
-            if m != "firefox" and m not in auto and only in ("both", m):
-                # Non-canonical chromium member: artifact is generated but NOT
-                # written to the live store. User must copy it manually.
-                lines.append(
-                    f"{self._display(m)}: NO se actualiza automáticamente — "
-                    f"copiá manualmente out/{m}-bookmarks.json a su almacén"
-                )
-        lines += ["", "Se tomará un snapshot antes de escribir.",
-                  f"El detalle completo queda en {out / 'report.txt'}.", "¿Continuar?"]
+            ] + lines
+
         return "\n".join(lines)
 
     def _report_input_error(self, exc, dialog):
