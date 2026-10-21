@@ -1066,7 +1066,7 @@ class BookmarksGui:
         # Body text widget with monospace font (box-drawing chars align)
         if rest:
             txt = tk.Text(
-                dlg, wrap="none", height=20, width=90,
+                dlg, wrap="word", height=20, width=90,
                 bg=PALETTE["panel"], fg=PALETTE["text"],
                 font=("monospace", FONT_SIZES["label"]),
                 relief="flat", bd=0, highlightthickness=1,
