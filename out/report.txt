@@ -5,16 +5,16 @@
   Firefox  : /home/javier/.mozilla/firefox/14yqiklo.default-release
   Brave    : /home/javier/.config/BraveSoftware/Brave-Browser/Default
   Par     : firefox,brave
-  Canonico: brave
+  Base: brave
   Modo    : DRY-RUN (no se toca ningun browser)
 
 -- Estado de origen ---------------------------------------------------------
-  Firefox :  1548 bookmarks,  390 carpetas, 0 separadores
+  Firefox :  1549 bookmarks,  390 carpetas, 0 separadores
   Brave    :  1549 bookmarks,  384 carpetas
 
 -- Duplicados eliminados -----------------------------------------------------
   Dentro de Brave     :     0
-  Firefox (ya estaban en Brave):  1548
+  Firefox (ya estaban en Brave):  1549
      - [ff] bookmark_bar/Google  ->  https://www.google.com.ar/
      - [ff] bookmark_bar/Facebook  ->  https://www.facebook.com/
      - [ff] bookmark_bar/YouTube  ->  https://youtube.com/

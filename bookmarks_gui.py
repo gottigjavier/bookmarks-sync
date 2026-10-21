@@ -647,7 +647,7 @@ class BookmarksGui:
             combo.bind("<<ComboboxSelected>>",
                        lambda _e, which=col: self._on_browser_change(which))
             self.pair_combos.append(combo)
-        self._text_label(sync, "Canónico:").grid(
+        self._text_label(sync, "Base:").grid(
             row=2, column=0, sticky="w", pady=(6, 0))
         self.canon_box = tk.Frame(sync, bg=PALETTE["panel"])
         self.canon_box.grid(row=2, column=1, columnspan=3, sticky="w", pady=(6, 0))
@@ -779,7 +779,7 @@ class BookmarksGui:
             self.only_var.set(ONLY_BOTH)
             return
         members = self._pair_members()  # display labels
-        # Canónico: only the two pair members (values are display labels too).
+        # Base: only the two pair members (values are display labels too).
         if self.canonical_var.get() not in members:
             self.canonical_var.set(members[0])
         for member in members:
@@ -919,7 +919,7 @@ class BookmarksGui:
         out = Path(state["out"] or DEFAULT_OUT).expanduser()
         lines = [
             "Se ejecutará --apply con estos parámetros:",
-            f"Par: {members[0]},{members[1]}   Canónico: "
+            f"Par: {members[0]},{members[1]}   Base: "
             f"{self._display(canonical)}   --only: {only}",
             "",
             "Escritura automática: "
@@ -939,7 +939,7 @@ class BookmarksGui:
                 "  → seleccionar el JSON de arriba.",
                 "",
                 "Se ejecutará --apply con estos parámetros:",
-                f"Par: {members[0]},{members[1]}   Canónico: "
+                f"Par: {members[0]},{members[1]}   Base: "
                 f"{self._display(canonical)}   --only: {only}",
                 "",
                 "Escritura automática: "

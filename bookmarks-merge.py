@@ -932,7 +932,7 @@ def build_report(args, profiles, chromium_roots, ff_items, ff_stats, result, out
     for member in pair:
         add(f"  {display[member]:<9}: {profiles[member]}")
     add(f"  Par     : {pair[0]},{pair[1]}")
-    add(f"  Canonico: {canonical}")
+    add(f"  Base: {canonical}")
     add(f"  Modo    : {'APPLY' if args.apply else 'DRY-RUN (no se toca ningun browser)'}")
     add("")
 
@@ -1058,7 +1058,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Converge los marcadores de exactamente dos navegadores en un unico "
                     "arbol deduplicado, usando como esqueleto la estructura de carpetas "
-                    "del navegador canonico (siempre explicito con --canonical)."
+                    "del navegador base (siempre explícito con --canonical)."
     )
     parser.add_argument("--apply", action="store_true",
                         help="escribe los cambios (sin esto: dry-run, no toca ningun browser)")
@@ -1082,7 +1082,7 @@ def main(argv=None):
                         help="ruta del perfil de Chromium (default: ~/.config/chromium/Default)")
     parser.add_argument("--attach-folder", default="Favoritos",
                         help="carpeta del bookmark_bar donde colgar 'Desde <navegador>' "
-                             "(solo cuando el canonico es un navegador de la familia "
+                             "(solo cuando el base es un navegador de la familia "
                              "Chromium; con --canonical firefox se cuelga en la raiz de "
                              "cada root)")
     parser.add_argument("--out", "--out-dir", dest="out", default=str(SCRIPT_DIR / "out"),
