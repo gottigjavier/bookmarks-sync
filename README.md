@@ -147,7 +147,7 @@ python3 bookmarks-merge.py --pair firefox,brave --canonical brave \
 # Rutas de perfil explícitas (solo se resuelven los miembros del par;
 # reemplazar la ruta de Firefox por la del perfil propio)
 python3 bookmarks-merge.py --pair firefox,brave --canonical firefox \
-  --ff-profile ~/.mozilla/firefox/14yqiklo.default-release \
+  --ff-profile ~/.mozilla/firefox/user.default-release \
   --brave-profile ~/.config/BraveSoftware/Brave-Browser/Default
 ```
 

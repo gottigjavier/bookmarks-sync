@@ -10,7 +10,7 @@ Sustituye la verificación manual que se había hecho con scripts sueltos en
 ## Quick path
 
 ```bash
-cd /home/javier/programacion/browsers/IA-sync
+cd /home/user/programacion/browsers/IA-sync
 bash tests/run_smoke_test.sh
 ```
 
