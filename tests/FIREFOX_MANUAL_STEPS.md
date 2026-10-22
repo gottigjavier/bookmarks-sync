@@ -45,6 +45,13 @@ de `/tmp/opencode/iasync-smoke`.
       con los marcadores que aportó el otro navegador.
 - [ ] No quedaron marcadores duplicados.
 
+## Después del import
+
+El harness **sigue pasando** después de este import: el fixture normaliza la
+raíz `menu` de su copia (ver `README.md`), así que el marcador que quedó en tu
+perfil real no lo afecta y la corrida siguiente vuelve a salir en verde sin
+cambios.
+
 ## Si algo sale mal
 
 El harness no toca el perfil real, así que el restore es reversible. Cerrá

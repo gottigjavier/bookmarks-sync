@@ -6,8 +6,9 @@ Que hace:
        Firefox   -> $SMOKE_WORK_DIR/firefox/places.sqlite{,-wal,-shm}
        Brave     -> $SMOKE_WORK_DIR/brave/Default/Bookmarks
        Chromium  -> $SMOKE_WORK_DIR/chromium/Default/Bookmarks
-  2. Inserta el marcador de prueba dentro de la raiz `menu` de Firefox
-     (parent id = 2) en la COPIA, nunca en el perfil real.
+  2. Normaliza la raiz `menu` de la COPIA de Firefox (deja el subarbol vacio)
+     e inserta dentro de ella el marcador de prueba (parent id = 2). Nunca en
+     el perfil real.
 
 Por que NO se copia el perfil completo: el perfil real de Firefox contiene
 `logins.json`, `key4.db`, `cookies.sqlite` y `Login Data`. Copiar eso al disco
@@ -118,17 +119,26 @@ def insert_marker(db_path: Path, title: str, url: str) -> dict:
         con.execute("DELETE FROM moz_bookmarks WHERE guid = ?", (FF_BOOKMARK_GUID,))
         con.execute("DELETE FROM moz_places WHERE guid = ?", (FF_PLACE_GUID,))
 
-        con.execute(
-            "DELETE FROM moz_origins WHERE host = ? AND prefix = ?",
+        # El origen es una fila de host con UNIQUE(host, prefix). NO se borra:
+        # `moz_places.origin_id` no declara ON DELETE CASCADE, asi que borrar un
+        # origen que ya tiene marcadores (por ejemplo el que dejo el import
+        # manual del artefacto, que usa este mismo host sintetico) revienta con
+        # FOREIGN KEY constraint failed. Se reusa la fila existente.
+        origin_row = con.execute(
+            "SELECT id FROM moz_origins WHERE host = ? AND prefix = ?",
             (FF_ORIGIN_HOST, FF_ORIGIN_PREFIX),
-        )
-
-        origin_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM moz_origins").fetchone()[0]
-        con.execute(
-            "INSERT INTO moz_origins (id, prefix, host, frecency, recalc_frecency, "
-            "recalc_alt_frecency) VALUES (?, ?, ?, 0, 0, 0)",
-            (origin_id, FF_ORIGIN_PREFIX, FF_ORIGIN_HOST),
-        )
+        ).fetchone()
+        if origin_row is not None:
+            origin_id = origin_row[0]
+        else:
+            origin_id = con.execute(
+                "SELECT COALESCE(MAX(id), 0) + 1 FROM moz_origins"
+            ).fetchone()[0]
+            con.execute(
+                "INSERT INTO moz_origins (id, prefix, host, frecency, recalc_frecency, "
+                "recalc_alt_frecency) VALUES (?, ?, ?, 0, 0, 0)",
+                (origin_id, FF_ORIGIN_PREFIX, FF_ORIGIN_HOST),
+            )
 
         place_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM moz_places").fetchone()[0]
         con.execute(
@@ -180,6 +190,45 @@ def insert_marker(db_path: Path, title: str, url: str) -> dict:
             "place_id": row[5],
             "origin_id": row[6],
         }
+    finally:
+        con.close()
+
+
+def normalize_menu_root(db_path: Path) -> int:
+    """Vacia la raiz `menu` de la COPIA (subarbol incluido) y devuelve cuantas
+    filas habia.
+
+    Por que: el smoke test verifica la PROYECCION de la raiz `menu` de Firefox
+    dentro de 'other' del formato Chromium. El fixture tiene que ser
+    determinista. Si la raiz `menu` del perfil real tuviera marcadores propios
+    -- o el marcador que dejo el import manual del artefacto, que es
+    precisamente lo que este harness documenta hacer -- el conteo de la linea
+    NOTA dejaria de ser "1 marcador" y el assert A2 (que es byte a byte)
+    dejaria de aplicar. Se borra solo en la COPIA: el perfil real nunca se
+    escribe.
+
+    Las filas `moz_places` de los marcadores borrados se dejan como estan:
+    pueden estar referenciadas por marcadores fuera de la raiz `menu`, y la
+    herramienta solo lee `moz_bookmarks` unido a `moz_places`.
+    """
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute("PRAGMA foreign_keys = ON")
+        con.execute("CREATE TEMP TABLE _smoke_menu_sub(id INTEGER PRIMARY KEY)")
+        con.execute(
+            "INSERT INTO _smoke_menu_sub(id) "
+            "WITH RECURSIVE sub(id) AS ("
+            "  SELECT id FROM moz_bookmarks WHERE parent = ?"
+            "  UNION ALL"
+            "  SELECT b.id FROM moz_bookmarks b JOIN sub ON b.parent = sub.id"
+            ") SELECT id FROM sub",
+            (FF_MENU_PARENT_ID,),
+        )
+        removed = con.execute("SELECT COUNT(*) FROM _smoke_menu_sub").fetchone()[0]
+        con.execute("DELETE FROM moz_bookmarks WHERE id IN (SELECT id FROM _smoke_menu_sub)")
+        con.execute("DROP TABLE _smoke_menu_sub")
+        con.commit()
+        return removed
     finally:
         con.close()
 
@@ -265,6 +314,11 @@ def main() -> int:
     if not ff_store.is_file():
         raise SystemExit(f"No se pudo preparar la copia de Firefox: falta {ff_store}")
 
+    removed = normalize_menu_root(ff_store)
+    if removed:
+        print(f"[step1]   raiz 'menu' de la COPIA normalizada: {removed} fila(s) del "
+              f"subarbol quitadas (el fixture prueba la proyeccion de la raiz, "
+              f"no el contenido real del menu del usuario)")
     before = menu_children_count(ff_store)
     info = insert_marker(ff_store, title, url)
     after = menu_children_count(ff_store)

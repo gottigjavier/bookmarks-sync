@@ -49,7 +49,7 @@ siempre sobre copias dentro del work dir.
 |---|---|
 | `run_smoke_test.sh` | Orquestador: limpia, corre los 4 pasos en orden, verifica A8, imprime el resumen y el checklist manual |
 | `lib.sh` | Rutas, resolución de perfiles reales, guards de seguridad, helpers. Es la única fuente de verdad (los scripts Python la consultan con `--print-env`) |
-| `step1_prepare_fixtures.py` | Copia `places.sqlite*` y `Bookmarks` e inserta el marcador `MENU-ROOT-SMOKE-TEST` en la raíz `menu` de la **copia** |
+| `step1_prepare_fixtures.py` | Copia `places.sqlite*` y `Bookmarks`, normaliza la raíz `menu` de la copia de Firefox e inserta ahí el marcador `MENU-ROOT-SMOKE-TEST` |
 | `step2_generate_artifacts.sh` | Dry-run de los dos pares + assert de la línea `NOTA` + asserts estructurales |
 | `assert_artifacts.py` | Asserts de estructura de los dos artefactos (lo usan step2 y step3) |
 | `step3_apply_and_verify.py` | `--apply` sobre las copias + asserts del store escrito (A5, A6) |
@@ -78,15 +78,62 @@ python3 tests/assert_artifacts.py --out /tmp/opencode/iasync-smoke/out/firefox-b
 | A8 | Los perfiles reales no quedan modificados | `run_smoke_test.sh::verify_baseline` |
 | A9 | El orquestador deja el instructivo manual de Firefox | `run_smoke_test.sh` (imprime `FIREFOX_MANUAL_STEPS.md`) |
 
+## El fixture normaliza la raíz `menu` (y por qué)
+
+El smoke test verifica la **proyección** de la raíz `menu` de Firefox dentro de
+`other`: que el canónico Firefox emita esa raíz y que la familia Chromium la
+reciba. El fixture tiene que ser **determinista**, así que `step1` vacía la raíz
+`menu` de la **copia** (subárbol incluido) antes de insertar el marcador:
+
+- el perfil real nunca se escribe (guard `smoke_assert_not_real_profile`);
+- la línea `NOTA` que asserta A2 dice siempre `1 marcador`, porque el árbol
+  fusionado tiene exactamente un marcador bajo `menu`;
+- el harness aguanta que el perfil real tenga marcadores propios en
+  "Menú de marcadores" **o** el marcador que dejó el import manual del
+  artefacto.
+
+Sin esa normalización el harness se rompía justo después del import manual
+documentado en `FIREFOX_MANUAL_STEPS.md`, por dos motivos distintos:
+
+1. Con un marcador ajeno en la raíz, la línea `NOTA` pasaba a la forma plural
+   (`N marcadores ... se proyectaron`) y el assert A2 —que es literal, byte a
+   byte— fallaba.
+2. Con un marcador que usa el origen sintético `smoke-test.invalid` (que es
+   exactamente el caso del marcador importado), el `DELETE FROM moz_origins` de
+   `step1` reventaba con `FOREIGN KEY constraint failed`: el schema de Firefox
+   no declara `ON DELETE CASCADE` en `moz_places.origin_id`. Por eso el origen
+   ahora se **reusa** si ya existe, en vez de borrarse.
+
+Lo que el fixture NO hace es verificar el contenido real del menú del usuario:
+eso no es lo que está bajo prueba.
+
 ## Verificación negativa: el harness detecta el bug
 
 Un smoke test que no puede fallar no prueba nada. Para comprobar que los
 asserts detectan la regresión, se puede **simular el bug** sobre una corrida
-terminada y ver que el harness la rechaza:
+terminada y ver que el harness la rechaza. Ojo con qué archivo se manipula:
+el assert estructural lee los **artefactos** (`out/<par>/*.json`) y el assert de
+render abre el **store escrito** (`brave/Default/Bookmarks`).
 
 ```bash
-# 1) Simular que la raíz `menu` NO se proyecta dentro de 'other'
+# 0) Copia de la corrida terminada
 cp -a /tmp/opencode/iasync-smoke /tmp/opencode/neg
+
+# 1) Assert estructural (A3/A4): la raíz `menu` NO se proyecta dentro de 'other'
+python3 - <<'PY'
+import json
+p = '/tmp/opencode/neg/out/firefox-brave/brave-bookmarks.json'
+d = json.load(open(p))
+other = d['roots']['other']
+other['children'] = [c for c in other['children'] if c.get('name') != 'Menú de marcadores']
+json.dump(d, open(p, 'w'), ensure_ascii=False, indent=3)
+PY
+
+# 2) El assert estructural tiene que fallar (exit 1)
+python3 tests/assert_artifacts.py --out /tmp/opencode/neg/out/firefox-brave --member brave \
+  --title MENU-ROOT-SMOKE-TEST --url https://smoke-test.invalid/menu-root
+
+# 3) El assert de render (CDP/AX) lee el STORE: se manipula ese archivo
 python3 - <<'PY'
 import json
 p = '/tmp/opencode/neg/brave/Default/Bookmarks'
@@ -95,11 +142,6 @@ other = d['roots']['other']
 other['children'] = [c for c in other['children'] if c.get('name') != 'Menú de marcadores']
 json.dump(d, open(p, 'w'), ensure_ascii=False, indent=3)
 PY
-
-# 2) El assert estructural tiene que fallar (exit 1)
-python3 tests/assert_artifacts.py --out /tmp/opencode/neg/out/firefox-brave --member brave
-
-# 3) El assert de render (CDP/AX) tiene que fallar (exit 1)
 python3 tests/step4_verify_brave_cdp.py --work-dir /tmp/opencode/neg --port 9333
 ```
 
@@ -188,11 +230,20 @@ copia del perfil real del usuario, y no contiene credenciales.
 
 ## Qué NO cubre este harness
 
-- **El import en Firefox real.** La UI no expone un importador automatizable y
-  el restore reemplaza el árbol completo del usuario. Queda como paso manual
-  documentado en `FIREFOX_MANUAL_STEPS.md`.
-- **El replay del WAL.** Si el `-wal` real está vacío, el escenario no se
-  ejercita.
+- **La verificación automática del import en Firefox real.** La UI no expone un
+  importador automatizable y el restore reemplaza el árbol completo del
+  usuario, así que el paso es manual (`FIREFOX_MANUAL_STEPS.md`). **Ese import
+  manual sí se verificó a mano**: con el artefacto del harness, el restore
+  dejó la barra de marcadores con las carpetas que había y el marcador
+  `MENU-ROOT-SMOKE-TEST` apareció bajo "Menú de marcadores". Lo que no existe
+  es la corrida automática de ese paso.
+- **El replay del WAL.** El harness copia el trío `places.sqlite{,-wal,-shm}`
+  completo, así que un `-wal` con contenido sí se leería; pero en el perfil
+  real el `-wal` estaba vacío (0 bytes), así que ese escenario no quedó
+  ejercitado.
+- **La variante plural de la línea `NOTA`** (`N marcadores ... se proyectaron`):
+  el fixture normaliza la raíz `menu` a un solo marcador, así que el harness
+  solo ejercita la forma singular.
 - **`--restore`.** Requiere un estado de snapshot coherente; no está en el
   alcance de la prueba de humo.
 - **La familia Chromium con `--write-both`.** El harness prueba el caso de un
@@ -201,6 +252,7 @@ copia del perfil real del usuario, y no contiene credenciales.
 ## Siguiente paso
 
 Si el harness pasa, el fix de la raíz `menu` está verificado de punta a punta:
-artefacto, store escrito y render real. Lo que queda para cerrar el círculo es
-el import manual en Firefox.
+artefacto, store escrito y render real. El import manual en Firefox está
+verificado a mano y documentado. Quedan fuera del alcance de la prueba de
+humo: `--restore`, `--write-both` y el replay de un `-wal` real con contenido.
 
